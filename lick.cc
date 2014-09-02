@@ -24,5 +24,5 @@ own main, whichever you prefer.
 #include "lick.h"
 
 int main(int argc, char *argv[]) {
-  return cppcon::lick::main(argc, argv);
+  return cppcon14::lick::main(argc, argv);
 }

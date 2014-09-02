@@ -36,46 +36,46 @@ TODO
 #ifndef FIXTURE
 #define FIXTURE(name)  \
     static void name##_func();  \
-    static const ::cppcon::lick::fixture_t  \
+    static const ::cppcon14::lick::fixture_t  \
         name##_fixture(__LINE__, #name, name##_func);  \
     static void name##_func()
 #endif
 
 /* Macros to construct a expectations. */
 #ifndef EXPECT_EQ
-#define EXPECT_EQ(lhs, rhs) ::cppcon::lick::expect_t(  \
-    __LINE__, #lhs, lhs, ::cppcon::lick::expect_t::eq, #rhs, rhs)
+#define EXPECT_EQ(lhs, rhs) ::cppcon14::lick::expect_t(  \
+    __LINE__, #lhs, lhs, ::cppcon14::lick::expect_t::eq, #rhs, rhs)
 #endif
 #ifndef EXPECT_NE
-#define EXPECT_NE(lhs, rhs) ::cppcon::lick::expect_t(  \
-    __LINE__, #lhs, lhs, ::cppcon::lick::expect_t::ne, #rhs, rhs)
+#define EXPECT_NE(lhs, rhs) ::cppcon14::lick::expect_t(  \
+    __LINE__, #lhs, lhs, ::cppcon14::lick::expect_t::ne, #rhs, rhs)
 #endif
 #ifndef EXPECT_LT
-#define EXPECT_LT(lhs, rhs) ::cppcon::lick::expect_t(  \
-    __LINE__, #lhs, lhs, ::cppcon::lick::expect_t::lt, #rhs, rhs)
+#define EXPECT_LT(lhs, rhs) ::cppcon14::lick::expect_t(  \
+    __LINE__, #lhs, lhs, ::cppcon14::lick::expect_t::lt, #rhs, rhs)
 #endif
 #ifndef EXPECT_LE
-#define EXPECT_LE(lhs, rhs) ::cppcon::lick::expect_t(  \
-    __LINE__, #lhs, lhs, ::cppcon::lick::expect_t::le, #rhs, rhs)
+#define EXPECT_LE(lhs, rhs) ::cppcon14::lick::expect_t(  \
+    __LINE__, #lhs, lhs, ::cppcon14::lick::expect_t::le, #rhs, rhs)
 #endif
 #ifndef EXPECT_GT
-#define EXPECT_GT(lhs, rhs) ::cppcon::lick::expect_t(  \
-    __LINE__, #lhs, lhs, ::cppcon::lick::expect_t::gt, #rhs, rhs)
+#define EXPECT_GT(lhs, rhs) ::cppcon14::lick::expect_t(  \
+    __LINE__, #lhs, lhs, ::cppcon14::lick::expect_t::gt, #rhs, rhs)
 #endif
 #ifndef EXPECT_GE
-#define EXPECT_GE(lhs, rhs) ::cppcon::lick::expect_t(  \
-    __LINE__, #lhs, lhs, ::cppcon::lick::expect_t::ge, #rhs, rhs)
+#define EXPECT_GE(lhs, rhs) ::cppcon14::lick::expect_t(  \
+    __LINE__, #lhs, lhs, ::cppcon14::lick::expect_t::ge, #rhs, rhs)
 #endif
 #ifndef EXPECT_TRUE
-#define EXPECT_TRUE(arg) ::cppcon::lick::expect_t(  \
-    __LINE__, ::cppcon::lick::expect_t::pt, #arg, arg)
+#define EXPECT_TRUE(arg) ::cppcon14::lick::expect_t(  \
+    __LINE__, ::cppcon14::lick::expect_t::pt, #arg, arg)
 #endif
 #ifndef EXPECT_FALSE
-#define EXPECT_FALSE(arg) ::cppcon::lick::expect_t(  \
-    __LINE__, ::cppcon::lick::expect_t::pf, #arg, arg)
+#define EXPECT_FALSE(arg) ::cppcon14::lick::expect_t(  \
+    __LINE__, ::cppcon14::lick::expect_t::pf, #arg, arg)
 #endif
 
-namespace cppcon {
+namespace cppcon14 {
 namespace lick {
 
 /* Manages the single instance of a class (obj_t) with singleton semantics.
@@ -435,7 +435,7 @@ class expect_t final {
       }
 
       /* TODO */
-      void on_exception(const std::exception &ex) {
+      void on_exception(const std::exception &) {
         assert(this);
         ok = false;
       }
@@ -1286,14 +1286,14 @@ inline int main(int argc, char *argv[]) {
 }
 
 }  // lick
-}  // cppcon
+}  // cppcon14
 
 /* Inserts arbitrary types of data into the description of an expectation
    object.  Expectation objects are temporary, so we use an r-value reference
    here. */
 template <typename that_t>
-inline cppcon::lick::expect_t &&operator<<(
-    cppcon::lick::expect_t &&expectation, const that_t &that) {
+inline cppcon14::lick::expect_t &&operator<<(
+    cppcon14::lick::expect_t &&expectation, const that_t &that) {
   assert(&expectation);
   expectation.get_strm() << that;
   return std::move(expectation);
