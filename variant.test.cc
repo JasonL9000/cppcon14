@@ -29,11 +29,11 @@ FIXTURE(max14) {
 
 FIXTURE(for_elems) {
   using nothing_t = for_elems<>;
-  EXPECT_EQ(nothing_t::max_alignof, 0);
-  EXPECT_EQ(nothing_t::max_sizeof, 0);
+  EXPECT_EQ(nothing_t::max_alignof, 0u);
+  EXPECT_EQ(nothing_t::max_sizeof, 0u);
   using just_void_t = for_elems<void>;
-  EXPECT_EQ(just_void_t::max_alignof, 0);
-  EXPECT_EQ(just_void_t::max_sizeof, 0);
+  EXPECT_EQ(just_void_t::max_alignof, 0u);
+  EXPECT_EQ(just_void_t::max_sizeof, 0u);
   using just_char_t = for_elems<char>;
   EXPECT_EQ(just_char_t::max_alignof, alignof(char));
   EXPECT_EQ(just_char_t::max_sizeof, sizeof(char));
