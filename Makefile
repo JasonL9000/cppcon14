@@ -1,11 +1,11 @@
-all: variant.test
-	./variant.test
+all: ../out/variant.test
+	../out/variant.test
 
-variant.test: variant.test.o lick.o
-	g++ -g -ovariant.test variant.test.o lick.o
+../out/variant.test: ../out/variant.test.o ../out/lick.o
+	g++ -g -o../out/variant.test ../out/variant.test.o ../out/lick.o
 
-variant.test.o: variant.test.cc variant.h lick.h
-	g++ -std=c++11 -c -g -Wall -Wextra -ovariant.test.o variant.test.cc
+../out/variant.test.o: variant.test.cc variant.h lick.h
+	g++ -std=c++11 -c -g -Wall -Wextra -o../out/variant.test.o variant.test.cc
 
-lick.o: lick.cc lick.h
-	g++ -std=c++11 -c -g -Wall -Wextra -olick.o lick.cc
+../out/lick.o: lick.cc lick.h
+	g++ -std=c++11 -c -g -Wall -Wextra -o../out/lick.o lick.cc
