@@ -194,6 +194,28 @@ class variant_t final {
     tag = that.tag;
   }
 
+  /* Move-construct from a donor element, leaving the donor 'empty'. */
+  template <
+      typename elem_t,
+      typename = typename std::enable_if<
+          contains<elem_t, elems_t...>::value>::type>
+  variant_t(elem_t &&elem) noexcept {
+    assert(&elem);
+    new (data) elem_t(std::move(elem));
+    tag = get_tag<elem_t>();
+  }
+
+  /* Copy-construct from an exemplar element, leaving the exemplar intact. */
+  template <
+      typename elem_t,
+      typename = typename std::enable_if<
+          contains<elem_t, elems_t...>::value>::type>
+  variant_t(const elem_t &elem) {
+    assert(&elem);
+    new (data) elem_t(elem);
+    tag = get_tag<elem_t>();
+  }
+
   /* Destroy. */
   ~variant_t() {
     assert(this);
@@ -242,23 +264,41 @@ class variant_t final {
 
   /* TODO */
   struct tag_t final {
-    void (*destroy)(void *self) noexcept;
-    void (*move_construct)(void *self, void *other) noexcept;
-    void (*copy_construct)(void *self, const void *other);
-    void (*accept)(const void *self, const visitor_t &visitor);
+    void (*destroy)(data_t &) noexcept;
+    void (*move_construct)(data_t &self, data_t &other) noexcept;
+    void (*copy_construct)(data_t &self, const data_t &other);
+    void (*accept)(const data_t &self, const visitor_t &visitor);
   };  // variant_t
 
   /* The tag we use iff. we're void. */
   static const tag_t *get_void_tag() noexcept {
     static const tag_t tag = {
       /* destroy */
-      [](void *) {},
+      [](data_t &) {},
       /* move_construct */
-      [](void *, void *) {},
+      [](data_t &, data_t &) {},
       /* copy_construct */
-      [](void *, const void *) {},
+      [](data_t &, const data_t &) {},
       /* accept */
-      [](const void *, const visitor_t &visitor) {
+      [](const data_t &, const visitor_t &visitor) {
+        visitor();
+      }
+    };
+    return &tag;
+  }
+
+  /* TODO */
+  template <typename elem_t>
+  static const tag_t *get_tag() noexcept {
+    static const tag_t tag = {
+      /* destroy */
+      [](data_t &) {},
+      /* move_construct */
+      [](data_t &, data_t &) {},
+      /* copy_construct */
+      [](data_t &, const data_t &) {},
+      /* accept */
+      [](const data_t &, const visitor_t &visitor) {
         visitor();
       }
     };
