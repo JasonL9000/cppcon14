@@ -14,6 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 TODO
+
+add passing conventions to visitor handlers
+separate visitor into accessor and mutator
+disallow empty type set
+make sample application
+wrap implementation in privacy
+rewrite 'contains'
+can we have a set of function objects as our verb?
+add as<T> and try_as<t>
+add construction between unions of intersecting sets, with bad_cast
+
+TODO
 --------------------------------------------------------------------------- */
 
 #pragma once
@@ -157,15 +169,24 @@ struct visitor_t;
 /* TODO */
 template <>
 struct visitor_t<> {
+
+  /* TODO */
   virtual void operator()() const = 0;
-};
+
+};  // visitor_t<>
 
 /* TODO */
 template <typename elem_t, typename... more_elems_t>
-struct visitor_t<elem_t, more_elems_t...> : visitor_t<more_elems_t...> {
+struct visitor_t<elem_t, more_elems_t...>
+    : visitor_t<more_elems_t...> {
+
+  /* TODO */
   using visitor_t<more_elems_t...>::operator();
+
+  /* TODO */
   virtual void operator()(const elem_t &) const = 0;
-};
+
+};  // visitor_t<elem_t, more_elems_t...>
 
 /* ---------------------------------------------------------------------------
 TODO
@@ -179,16 +200,16 @@ class variant_t final {
   /* TODO */
   using visitor_t = variant::visitor_t<elems_t...>;
 
-  /* Default-construct void. */
+  /* Default-construct null. */
   variant_t() noexcept {
-    tag = get_void_tag();
+    tag = get_null_tag();
   }
 
-  /* Move-construct, leaving the donor void. */
+  /* Move-construct, leaving the donor null. */
   variant_t(variant_t &&that) noexcept {
     (that.tag->move_construct)(*this, std::move(that));
     tag = that.tag;
-    that.tag = get_void_tag();
+    that.tag = get_null_tag();
   }
 
   /* Copy-construct, leaving the exemplar intact. */
@@ -225,7 +246,7 @@ class variant_t final {
     (tag->destroy)(*this);
   }
 
-  /* Move-assign, leaving the donor void. */
+  /* Move-assign, leaving the donor null. */
   variant_t &operator=(variant_t &&that) noexcept {
     assert(this);
     assert(&that);
@@ -243,10 +264,10 @@ class variant_t final {
     return *this = variant_t(that);
   }
 
-  /* True iff. we're not void. */
+  /* True iff. we're not null. */
   operator bool() const noexcept {
     assert(this);
-    return tag == get_void_tag();
+    return tag == get_null_tag();
   }
 
   /* TODO */
@@ -259,7 +280,7 @@ class variant_t final {
   variant_t &reset() noexcept {
     assert(this);
     this->~variant_t();
-    tag = get_void_tag();
+    tag = get_null_tag();
     return *this;
   }
 
@@ -337,8 +358,8 @@ class variant_t final {
     return &tag;
   }
 
-  /* The tag we use iff. we're void. */
-  static const tag_t *get_void_tag() noexcept {
+  /* The tag we use iff. we're null. */
+  static const tag_t *get_null_tag() noexcept {
     static const tag_t tag = {
       // move_construct
       [](variant_t &, variant_t &&) {},
@@ -366,123 +387,238 @@ class variant_t final {
 TODO
 --------------------------------------------------------------------------- */
 
+/* TODO */
 template <typename fn_t>
 struct for_fn;
 
-/* TODO */
-template <typename ret_t_, typename... args_t>
-struct for_fn<ret_t_ (args_t...)> {
+/* Explicit specialization for a function which returns non-void. */
+template <typename ret_t, typename... params_t>
+struct for_fn<ret_t (params_t...)> {
 
-  /* TODO */
-  using ret_t = ret_t_;
-
-  /* TODO */
-  template <typename applied_t, typename visitor_t, typename... elems_t>
+  /* This will be our visitor, recursively defined.  It functions as an
+     adapter, passing control from the virtual functions of the visitor
+     to the appropriate overloads of operator() in the functor functor. */
+  template <typename functor_t, typename visitor_t, typename... elems_t>
   class applier_t;
 
-  /* TODO */
-  template <typename applied_t, typename visitor_t>
-  class applier_t<applied_t, visitor_t>
+  /* The base case inherits from the visitor for the variant and caches
+     references to the functor and to the storage location for the value
+     to be returned by the functor, as well as the extra (non-
+     variant) arguments to be passed to the functor.  This class also
+     defines the nullary operator() override. */
+  template <typename functor_t, typename visitor_t>
+  class applier_t<functor_t, visitor_t>
       : public visitor_t {
     public:
 
-    /* TODO */
-    applier_t(applied_t &applied, ret_t *ret, args_t &&... args)
-        : applied(applied), ret(ret), tuple(std::forward_as_tuple(args)...) {
-      assert(ret);
-    }
+    /* Cache stuff for later, when operator() gets dispatched. */
+    applier_t(functor_t &functor, ret_t &ret, params_t &&... params)
+        : functor(functor), ret(ret),
+          tuple(std::forward_as_tuple(params)...) {}
 
-    /* TODO */
+    /* Override of the definition in visitor_t.  This is the nullary version,
+       used when the variant is null.  It is just a hand-ff to apply_tuple(),
+       below. */
     virtual void operator()() const override final {
       assert(this);
-      apply(ret, std::index_sequence_for<args_t...>());
+      apply_tuple(std::index_sequence_for<params_t...>());
     }
 
     protected:
 
-    /* TODO */
-    applied_t &applied;
+    /* The functor we will apply. */
+    functor_t &functor;
 
-    /* TODO */
-    ret_t *ret;
+    /* The location in which to cache the result of the functor. */
+    ret_t &ret;
 
-    /* TODO */
-    const std::tuple<args_t &&...> tuple;
+    /* The extra arguments (beyond the variant) to pass to the functor. */
+    const std::tuple<params_t &&...> tuple;
 
     private:
 
-    /* TODO */
-    template <typename ret_t, size_t... i>
-    void apply(ret_t *ret, std::index_sequence<i...> &&) const {
-      assert(this);
-      *ret = applied(std::get<i>(tuple)...);
-    }
-
-    /* TODO */
+    /* Unrolls the cached tuple of extra arguments into an application of the
+       functor and caches the valued returned. */
     template <size_t... i>
-    void apply(void *, std::index_sequence<i...> &&) const {
+    void apply_tuple(std::index_sequence<i...> &&) const {
       assert(this);
-      applied(std::get<i>(tuple)...);
+      ret = functor(std::get<i>(tuple)...);
     }
 
-  };  // for_fn<ret_t (args_t...)>::applier_t<applied_t, visitor_t>
+  };  // for_fn<ret_t (params_t...)>::applier_t<functor_t, visitor_t>
 
-  /* TODO */
+  /* Each iteration of the recursive case defines a unary overload of
+     operator(). */
   template <
-      typename applied_t, typename visitor_t,
+      typename functor_t, typename visitor_t,
       typename elem_t, typename... more_elems_t>
-  class applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
-      : public applier_t<applied_t, visitor_t, more_elems_t...> {
+  class applier_t<functor_t, visitor_t, elem_t, more_elems_t...>
+      : public applier_t<functor_t, visitor_t, more_elems_t...> {
     public:
 
-    /* TODO */
-    applier_t(applied_t &applied, ret_t *ret, args_t &&... args)
-        : recur_t(applied, ret, std::forward<args_t>(args)...) {}
+    /* Pass everything up to the base case. */
+    applier_t(functor_t &functor, ret_t &ret, params_t &&... params)
+        : recur_t(functor, ret, std::forward<params_t>(params)...) {}
 
-    /* TODO */
+    /* Override of the definition in visitor_t.  This is the unary version,
+       used when the variant is non-null.  It is just a hand-ff to
+       apply_tuple(), below. */
     virtual void operator()(const elem_t &elem) const override final {
       assert(this);
-      apply(this->ret, elem, std::index_sequence_for<args_t...>());
+      apply_tuple(elem, std::index_sequence_for<params_t...>());
     }
 
     private:
 
-    /* TODO */
-    using recur_t = applier_t<applied_t, visitor_t, more_elems_t...>;
+    /* The base class to which we recur. */
+    using recur_t = applier_t<functor_t, visitor_t, more_elems_t...>;
 
-    /* TODO */
-    template <typename ret_t, size_t... i>
-    void apply(
-        ret_t *ret, const elem_t &elem, std::index_sequence<i...> &&) const {
-      assert(this);
-      *ret = (this->applied)(elem, std::get<i>(this->tuple)...);
-    }
-
-    /* TODO */
+    /* Passes the variant state as well as the unrolled cached tuple of extra
+       arguments into an application of the functor and caches the valued
+       returned. */
     template <size_t... i>
-    void apply(
-        void *, const elem_t &elem, std::index_sequence<i...> &&) const {
+    void apply_tuple(
+        const elem_t &elem, std::index_sequence<i...> &&) const {
       assert(this);
-      (this->applied)(elem, std::get<i>(this->tuple)...);
+      this->ret = (this->functor)(elem, std::get<i>(this->tuple)...);
     }
 
-  };  // for_fn<ret_t (args_t...)>::applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
+  };  /* for_fn<ret_t (params_t...)>
+             ::applier_t<functor_t, visitor_t, elem_t, more_elems_t...> */
 
-};  // for_fn<ret_t (args_t...)>
+  /* Applies a functor to a variant, passing zero or more additional
+     arguments and returning a non-null result. */
+  template <typename functor_t, typename... elems_t, typename... args_t>
+  static ret_t apply(
+      functor_t &functor, const variant_t<elems_t...> &that,
+      args_t &&... args) {
+    assert(&that);
+    ret_t ret;
+    that.accept(applier_t<functor_t, visitor_t<elems_t...>, elems_t...>(
+        functor, ret, std::forward<args_t>(args)...));
+    return std::move(ret);
+  }
+
+};  // for_fn<ret_t (params_t...)>
+
+/* Explicit specialization for a function which returns void. */
+template <typename... params_t>
+struct for_fn<void (params_t...)> {
+
+  /* This will be our visitor, recursively defined.  It functions as an
+     adapter, passing control from the virtual functions of the visitor
+     to the appropriate overloads of operator() in the functor functor. */
+  template <typename functor_t, typename visitor_t, typename... elems_t>
+  class applier_t;
+
+  /* The base case inherits from the visitor for the variant and caches
+     references to the functor as well as the extra (non-variant) arguments
+     to be passed to the functor.  This class also defines the nullary
+     operator() override. */
+  template <typename functor_t, typename visitor_t>
+  class applier_t<functor_t, visitor_t>
+      : public visitor_t {
+    public:
+
+    /* Cache stuff for later, when operator() gets dispatched. */
+    applier_t(functor_t &functor, params_t &&... params)
+        : functor(functor), tuple(std::forward_as_tuple(params)...) {}
+
+    /* Override of the definition in visitor_t.  This is the nullary version,
+       used when the variant is null.  It is just a hand-ff to apply_tuple(),
+       below. */
+    virtual void operator()() const override final {
+      assert(this);
+      apply_tuple(std::index_sequence_for<params_t...>());
+    }
+
+    protected:
+
+    /* The functor we will apply. */
+    functor_t &functor;
+
+    /* The extra arguments (beyond the variant) to pass to the functor. */
+    const std::tuple<params_t &&...> tuple;
+
+    private:
+
+    /* Unrolls the cached tuple of extra arguments into an application of the
+       functor. */
+    template <size_t... i>
+    void apply_tuple(std::index_sequence<i...> &&) const {
+      assert(this);
+      functor(std::get<i>(tuple)...);
+    }
+
+  };  // for_fn<void (params_t...)>::applier_t<functor_t, visitor_t>
+
+  /* Each iteration of the recursive case defines a unary overload of
+     operator(). */
+  template <
+      typename functor_t, typename visitor_t,
+      typename elem_t, typename... more_elems_t>
+  class applier_t<functor_t, visitor_t, elem_t, more_elems_t...>
+      : public applier_t<functor_t, visitor_t, more_elems_t...> {
+    public:
+
+    /* Pass everything up to the base case. */
+    applier_t(functor_t &functor, params_t &&... params)
+        : recur_t(functor, std::forward<params_t>(params)...) {}
+
+    /* Override of the definition in visitor_t.  This is the unary version,
+       used when the variant is non-null.  It is just a hand-ff to
+       apply_tuple(), below. */
+    virtual void operator()(const elem_t &elem) const override final {
+      assert(this);
+      apply_tuple(elem, std::index_sequence_for<params_t...>());
+    }
+
+    private:
+
+    /* The base class to which we recur. */
+    using recur_t = applier_t<functor_t, visitor_t, more_elems_t...>;
+
+    /* Passes the variant state as well as the unrolled cached tuple of extra
+       arguments into an application of the functor. */
+    template <size_t... i>
+    void apply_tuple(
+        const elem_t &elem, std::index_sequence<i...> &&) const {
+      assert(this);
+      (this->functor)(elem, std::get<i>(this->tuple)...);
+    }
+
+  };  /* for_fn<void (params_t...)>
+             ::applier_t<functor_t, visitor_t, elem_t, more_elems_t...> */
+
+  /* Applies a functor to a variant, passing zero or more additional
+     arguments. */
+  template <typename functor_t, typename... elems_t, typename... args_t>
+  static void apply(
+      functor_t &functor, const variant_t<elems_t...> &that,
+      args_t &&... args) {
+    assert(&that);
+    that.accept(applier_t<functor_t, visitor_t<elems_t...>, elems_t...>(
+        functor, std::forward<args_t>(args)...));
+  }
+
+};  // for_fn<void (params_t...)>
 
 /* TODO */
-template <typename applied_t, typename... elems_t, typename... more_args_t>
-typename for_fn<typename applied_t::fn_t>::ret_t apply(
-    applied_t &&applied, const variant_t<elems_t...> &arg,
-    more_args_t &&... more_args) {
-  using visitor_t = variant::visitor_t<elems_t...>;
-  using for_fn = variant::for_fn<typename applied_t::fn_t>;
-  using applier_t =
-      typename for_fn::template applier_t<applied_t, visitor_t, elems_t...>;
-  typename for_fn::ret_t ret;
-  arg.accept(applier_t(
-      applied, &ret, std::forward<more_args_t>(more_args)...));
-  return std::move(ret);
+template <typename functor_t, typename... elems_t, typename... args_t>
+decltype(auto) apply(
+    functor_t &functor, const variant_t<elems_t...> &that,
+    args_t &&... args) {
+  return for_fn<typename functor_t::fn_t>::apply(
+      functor, that, std::forward<args_t>(args)...);
+}
+
+/* TODO */
+template <typename functor_t, typename... elems_t, typename... args_t>
+decltype(auto) apply(
+    functor_t &&functor, const variant_t<elems_t...> &that,
+    args_t &&... args) {
+  return for_fn<typename functor_t::fn_t>::apply(
+      functor, that, std::forward<args_t>(args)...);
 }
 
 }  // variant
