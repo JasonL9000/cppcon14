@@ -63,16 +63,16 @@ struct stringer_t final {
 
   using fn_t = string (string &);
 
-  string operator()(string &) {
+  string operator()(string &xtra) {
     ostringstream strm;
-    strm << "void";
+    strm << xtra << "void";
     return strm.str();
   }
 
   template <typename elem_t>
-  string operator()(const elem_t &elem, string &) {
+  string operator()(const elem_t &elem, string &xtra) {
     ostringstream strm;
-    strm << elem;
+    strm << xtra << elem;
     return strm.str();
   }
 
@@ -80,8 +80,8 @@ struct stringer_t final {
 
 FIXTURE(def_ctor) {
   using foo_t = variant_t<int, string>;
-  foo_t a(string("hello"));
-  string x;
-  auto actl = apply(stringer_t(), a, x);
-  EXPECT_EQ(actl, "hello");
+  foo_t a(string("doctor"));
+  string b = "hello ";
+  auto actl = apply(stringer_t(), a, b);
+  EXPECT_EQ(actl, "hello doctor");
 }
