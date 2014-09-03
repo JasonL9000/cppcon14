@@ -603,7 +603,8 @@ struct for_fn<void (params_t...)> {
 
 };  // for_fn<void (params_t...)>
 
-/* TODO */
+/* Applies a functor to a variant, passing zero or more additional arguments,
+   and possibly returning a value. */
 template <typename functor_t, typename... elems_t, typename... args_t>
 decltype(auto) apply(
     functor_t &functor, const variant_t<elems_t...> &that,
@@ -612,7 +613,8 @@ decltype(auto) apply(
       functor, that, std::forward<args_t>(args)...);
 }
 
-/* TODO */
+/* Applies a temporary functor to a variant, passing zero or more additional
+   arguments, and possibly returning a value. */
 template <typename functor_t, typename... elems_t, typename... args_t>
 decltype(auto) apply(
     functor_t &&functor, const variant_t<elems_t...> &that,
