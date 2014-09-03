@@ -5,7 +5,7 @@ all: ../out/variant.test
 	g++ -g -o../out/variant.test ../out/variant.test.o ../out/lick.o
 
 ../out/variant.test.o: variant.test.cc variant.h lick.h
-	g++ -std=c++11 -c -g -Wall -Wextra -o../out/variant.test.o variant.test.cc
+	g++ -std=c++1y -c -g -Wall -Wextra -o../out/variant.test.o variant.test.cc
 
 ../out/lick.o: lick.cc lick.h
-	g++ -std=c++11 -c -g -Wall -Wextra -o../out/lick.o lick.cc
+	g++ -std=c++1y -c -g -Wall -Wextra -o../out/lick.o lick.cc

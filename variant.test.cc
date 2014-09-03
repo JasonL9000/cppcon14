@@ -60,42 +60,28 @@ FIXTURE(contains) {
 }
 
 struct stringer_t final {
-  string &out;
-  mutable ostringstream strm;
-  stringer_t(string &out) : out(out) {}
-  ~stringer_t() { out = strm.str(); }
-  void operator()() const {
+
+  using fn_t = string (string &);
+
+  string operator()(string &) {
+    ostringstream strm;
     strm << "void";
+    return strm.str();
   }
+
   template <typename elem_t>
-  void operator()(const elem_t &elem) const {
+  string operator()(const elem_t &elem, string &) {
+    ostringstream strm;
     strm << elem;
+    return strm.str();
   }
+
 };
 
 FIXTURE(def_ctor) {
   using foo_t = variant_t<int, string>;
-  #if 0
-  using visitor_t = foo_t::visitor_t;
-  struct stringer_t final : visitor_t {
-    string &out;
-    mutable ostringstream strm;
-    stringer_t(string &out) : out(out) {}
-    ~stringer_t() { out = strm.str(); }
-    virtual void operator()() const { strm << "void"; }
-    virtual void operator()(const int &val) const { strm << val; }
-    virtual void operator()(const string &val) const { strm << val; }
-  };
-  string actl;
   foo_t a(string("hello"));
-  a.accept(stringer_t(actl));
+  string x;
+  auto actl = apply(stringer_t(), a, x);
   EXPECT_EQ(actl, "hello");
-  foo_t b(101);
-  b.accept(stringer_t(actl));
-  EXPECT_EQ(actl, "101");
-  #endif
-  string actl;
-  foo_t a(string("hello"));
-  apply(stringer_t(actl), a);
-  EXPECT_EQ(actl, "hellozz");
 }

@@ -20,6 +20,7 @@ TODO
 
 #include <cassert>
 #include <cstddef>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -365,53 +366,123 @@ class variant_t final {
 TODO
 --------------------------------------------------------------------------- */
 
-/* TODO */
-template <typename applied_t, typename visitor_t, typename... elems_t>
-struct applier_t;
+template <typename fn_t>
+struct for_fn;
 
 /* TODO */
-template <typename applied_t, typename visitor_t>
-struct applier_t<applied_t, visitor_t>
-    : visitor_t {
+template <typename ret_t_, typename... args_t>
+struct for_fn<ret_t_ (args_t...)> {
 
   /* TODO */
-  applier_t(const applied_t &applied)
-      : applied(applied) {}
+  using ret_t = ret_t_;
 
   /* TODO */
-  virtual void operator()() const override final {
-    applied();
-  }
+  template <typename applied_t, typename visitor_t, typename... elems_t>
+  class applier_t;
 
   /* TODO */
-  const applied_t &applied;
+  template <typename applied_t, typename visitor_t>
+  class applier_t<applied_t, visitor_t>
+      : public visitor_t {
+    public:
 
-};  // applier_t<applied_t, visitor_t>
+    /* TODO */
+    applier_t(applied_t &applied, ret_t *ret, args_t &&... args)
+        : applied(applied), ret(ret), tuple(std::forward_as_tuple(args)...) {
+      assert(ret);
+    }
+
+    /* TODO */
+    virtual void operator()() const override final {
+      assert(this);
+      apply(ret, std::index_sequence_for<args_t...>());
+    }
+
+    protected:
+
+    /* TODO */
+    applied_t &applied;
+
+    /* TODO */
+    ret_t *ret;
+
+    /* TODO */
+    const std::tuple<args_t &&...> tuple;
+
+    private:
+
+    /* TODO */
+    template <typename ret_t, size_t... i>
+    void apply(ret_t *ret, std::index_sequence<i...> &&) const {
+      assert(this);
+      *ret = applied(std::get<i>(tuple)...);
+    }
+
+    /* TODO */
+    template <size_t... i>
+    void apply(void *, std::index_sequence<i...> &&) const {
+      assert(this);
+      applied(std::get<i>(tuple)...);
+    }
+
+  };  // for_fn<ret_t (args_t...)>::applier_t<applied_t, visitor_t>
+
+  /* TODO */
+  template <
+      typename applied_t, typename visitor_t,
+      typename elem_t, typename... more_elems_t>
+  class applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
+      : public applier_t<applied_t, visitor_t, more_elems_t...> {
+    public:
+
+    /* TODO */
+    applier_t(applied_t &applied, ret_t *ret, args_t &&... args)
+        : recur_t(applied, ret, std::forward<args_t>(args)...) {}
+
+    /* TODO */
+    virtual void operator()(const elem_t &elem) const override final {
+      assert(this);
+      apply(this->ret, elem, std::index_sequence_for<args_t...>());
+    }
+
+    private:
+
+    /* TODO */
+    using recur_t = applier_t<applied_t, visitor_t, more_elems_t...>;
+
+    /* TODO */
+    template <typename ret_t, size_t... i>
+    void apply(
+        ret_t *ret, const elem_t &elem, std::index_sequence<i...> &&) const {
+      assert(this);
+      *ret = (this->applied)(elem, std::get<i>(this->tuple)...);
+    }
+
+    /* TODO */
+    template <size_t... i>
+    void apply(
+        void *, const elem_t &elem, std::index_sequence<i...> &&) const {
+      assert(this);
+      (this->applied)(elem, std::get<i>(this->tuple)...);
+    }
+
+  };  // for_fn<ret_t (args_t...)>::applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
+
+};  // for_fn<ret_t (args_t...)>
 
 /* TODO */
-template <
-    typename applied_t, typename visitor_t,
-    typename elem_t, typename... more_elems_t>
-struct applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
-    : applier_t<applied_t, visitor_t, more_elems_t...> {
-
-  /* TODO */
-  applier_t(const applied_t &applied)
-      : applier_t<applied_t, visitor_t, more_elems_t...>(applied) {}
-
-  /* TODO */
-  virtual void operator()(const elem_t &elem) const override final {
-    (this->applied)(elem);
-  }
-
-};  // applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
-
-/* TODO */
-template <typename applied_t, typename... elems_t>
-void apply(const applied_t &applied, const variant_t<elems_t...> &arg) {
+template <typename applied_t, typename... elems_t, typename... more_args_t>
+typename for_fn<typename applied_t::fn_t>::ret_t apply(
+    applied_t &&applied, const variant_t<elems_t...> &arg,
+    more_args_t &&... more_args) {
+  using visitor_t = variant::visitor_t<elems_t...>;
+  using for_fn = variant::for_fn<typename applied_t::fn_t>;
   using applier_t =
-      variant::applier_t<applied_t, visitor_t<elems_t...>, elems_t...>;
-  arg.accept(applier_t(applied));
+      typename for_fn::template applier_t<applied_t, visitor_t, elems_t...>;
+  typename for_fn::ret_t ret;
+  arg.accept(applier_t(
+      applied, &ret, std::forward<more_args_t>(more_args)...));
+  return std::move(ret);
 }
 
 }  // variant
