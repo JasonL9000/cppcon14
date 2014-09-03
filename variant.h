@@ -15,14 +15,7 @@ limitations under the License.
 
 TODO
 
-add passing conventions to visitor handlers
 separate visitor into accessor and mutator
-disallow empty type set
-make sample application
-wrap implementation in privacy
-rewrite 'contains'
-can we have a set of function objects as our verb?
-add as<T> and try_as<t>
 add construction between unions of intersecting sets, with bad_cast
 
 TODO
@@ -40,44 +33,20 @@ namespace cppcon14 {
 namespace variant {
 
 /* ---------------------------------------------------------------------------
-TODO
+Compile-time utilities used internally by variant_t.
 --------------------------------------------------------------------------- */
 
-/* TODO */
-template <typename elem_t>
-struct for_elem {
+/* This is the same as the std::max() function except that it works as a
+   compile-time expression. */
+template <typename val_t>
+inline constexpr const val_t &static_max(
+    const val_t &lhs, const val_t &rhs) {
+  return (lhs < rhs) ? rhs : lhs;
+}
 
-  /* Just alignof. */
-  static constexpr size_t safe_alignof = alignof(elem_t);
-
-  /* Just sizeof. */
-  static constexpr size_t safe_sizeof = sizeof(elem_t);
-
-};  // for_elem<elem_t>
-
-/* TODO */
-template <typename elem_t>
-constexpr size_t for_elem<elem_t>::safe_alignof;
-template <typename elem_t>
-constexpr size_t for_elem<elem_t>::safe_sizeof;
-
-/* TODO */
-template <>
-struct for_elem<void> {
-
-  /* Just zero. */
-  static constexpr size_t safe_alignof = 0;
-
-  /* Just zero. */
-  static constexpr size_t safe_sizeof = 0;
-
-};  // for_elem<void>
-
-/* TODO */
-constexpr size_t for_elem<void>::safe_alignof;
-constexpr size_t for_elem<void>::safe_sizeof;
-
-/* TODO */
+/* A place in which to look up static properties about a set of elements.
+   We'll use this to determine the size and alignment required for a variant,
+   among other things. */
 template <typename... elems_t>
 struct for_elems;
 
@@ -85,25 +54,23 @@ struct for_elems;
 template <>
 struct for_elems<> {
 
-  /* Just zero. */
-  static constexpr size_t max_alignof = 0;
+  /* Just false. */
+  template <typename subj_t>
+  static constexpr bool contains() noexcept {
+    return false;
+  }
 
   /* Just zero. */
-  static constexpr size_t max_sizeof = 0;
+  static constexpr size_t get_max_alignof() noexcept {
+    return 0;
+  }
+
+  /* Just zero. */
+  static constexpr size_t get_max_sizeof() noexcept {
+    return 0;
+  }
 
 };  // for_elems<>
-
-/* TODO */
-constexpr size_t for_elems<>::max_alignof;
-constexpr size_t for_elems<>::max_sizeof;
-
-/* This is the same as the std::max() function in '14.  It differs from '11
-   only in that it returns a constexpr.  When you upgrade to '14, you should
-   drop this function in favor of the standard one. */
-template <typename val_t>
-inline constexpr const val_t &max14(const val_t &lhs, const val_t &rhs) {
-  return (lhs < rhs) ? rhs : lhs;
-}
 
 /* The recurring case, for one or more elements. */
 template <typename elem_t, typename... more_elems_t>
@@ -112,54 +79,45 @@ struct for_elems<elem_t, more_elems_t...> {
   /* The for_elems<> specialization following this one. */
   using for_more_elems = for_elems<more_elems_t...>;
 
+  /* True iff. the set of elements contains the subject. */
+  template <typename subj_t>
+  static constexpr bool contains() noexcept {
+    return std::is_same<subj_t, elem_t>() ||
+        for_more_elems::template contains<subj_t>();
+  }
+
   /* The largest alignof(elem_t) among elems_t. */
-  static constexpr size_t max_alignof
-      = max14(for_elem<elem_t>::safe_alignof, for_more_elems::max_alignof);
+  static constexpr size_t get_max_alignof() noexcept {
+    return static_max(alignof(elem_t), for_more_elems::get_max_alignof());
+  }
 
   /* The largest sizeof(elem_t) among elems_t. */
-  static constexpr size_t max_sizeof
-      = max14(for_elem<elem_t>::safe_sizeof, for_more_elems::max_sizeof);
+  static constexpr size_t get_max_sizeof() noexcept {
+    return static_max(sizeof(elem_t), for_more_elems::get_max_sizeof());
+  }
 
 };  // for_elems<elem_t, more_elems_t...>
 
-/* TODO */
-template <typename elem_t, typename... more_elems_t>
-constexpr size_t for_elems<elem_t, more_elems_t...>::max_alignof;
-template <typename elem_t, typename... more_elems_t>
-constexpr size_t for_elems<elem_t, more_elems_t...>::max_sizeof;
-
-/* ---------------------------------------------------------------------------
-TODO
---------------------------------------------------------------------------- */
-
-/* TODO */
+/* True iff. the set of elements contains the subject. */
 template <typename subj_t, typename... elems_t>
-struct contains;
+inline constexpr bool contains() noexcept {
+  return for_elems<elems_t...>::template contains<subj_t>();
+}
 
-/* TODO */
-template <typename subj_t>
-struct contains<subj_t> {
-  static constexpr bool value = false;
-};
+/* The largest alignof(elem_t) among elems_t. */
+template <typename... elems_t>
+inline constexpr size_t get_max_alignof() noexcept {
+  return for_elems<elems_t...>::get_max_alignof();
+}
 
-/* TODO */
-template <typename subj_t>
-constexpr bool contains<subj_t>::value;
-
-/* TODO */
-template <typename subj_t, typename elem_t, typename... more_elems_t>
-struct contains<subj_t, elem_t, more_elems_t...> {
-  static constexpr bool value =
-      std::is_same<subj_t, elem_t>::value ||
-      contains<subj_t, more_elems_t...>::value;
-};
-
-/* TODO */
-template <typename subj_t, typename elem_t, typename... more_elems_t>
-constexpr bool contains<subj_t, elem_t, more_elems_t...>::value;
+/* The largest sizeof(elem_t) among elems_t. */
+template <typename... elems_t>
+inline constexpr size_t get_max_sizeof() noexcept {
+  return for_elems<elems_t...>::get_max_sizeof();
+}
 
 /* ---------------------------------------------------------------------------
-TODO
+The base class for all visitors to variants.
 --------------------------------------------------------------------------- */
 
 /* TODO */
@@ -189,7 +147,7 @@ struct visitor_t<elem_t, more_elems_t...>
 };  // visitor_t<elem_t, more_elems_t...>
 
 /* ---------------------------------------------------------------------------
-TODO
+The variant class template itself.
 --------------------------------------------------------------------------- */
 
 /* TODO */
@@ -199,6 +157,14 @@ class variant_t final {
 
   /* TODO */
   using visitor_t = variant::visitor_t<elems_t...>;
+
+  /* True iff. elem_t is among our elems_t; that is, if this variant can
+     ever contain a value of type elem_t.  We use this in a few places as a
+     predicate to std::enable_if<>. */
+  template <typename elem_t>
+  static constexpr bool contains() noexcept {
+    return variant::contains<elem_t, elems_t...>();
+  }
 
   /* Default-construct null. */
   variant_t() noexcept {
@@ -218,22 +184,22 @@ class variant_t final {
     tag = that.tag;
   }
 
-  /* Move-construct from a donor element, leaving the donor 'empty'. */
+  /* Move-construct from a donor element, leaving the donor 'empty'.  If we
+     cannot assume the requested type (that is, if elem_t is not among our
+     elems_t), this constructor is disabled. */
   template <
-      typename elem_t,
-      typename = typename std::enable_if<
-          contains<elem_t, elems_t...>::value>::type>
+      typename elem_t, typename = std::enable_if_t<contains<elem_t>()>>
   variant_t(elem_t &&elem) noexcept {
     assert(&elem);
     new (data) elem_t(std::move(elem));
     tag = get_tag<elem_t>();
   }
 
-  /* Copy-construct from an exemplar element, leaving the exemplar intact. */
+  /* Copy-construct from an exemplar element, leaving the exemplar intact.
+     If we cannot assume the requested type (that is, if elem_t is not among
+     our elems_t), this constructor is disabled. */
   template <
-      typename elem_t,
-      typename = typename std::enable_if<
-          contains<elem_t, elems_t...>::value>::type>
+      typename elem_t, typename = std::enable_if_t<contains<elem_t>()>>
   variant_t(const elem_t &elem) {
     assert(&elem);
     new (data) elem_t(elem);
@@ -284,16 +250,50 @@ class variant_t final {
     return *this;
   }
 
+  /* Access our state as a particular type.  If we're not currently of the
+     requested type, return null.  If we can never be of the requested type
+     (that is, elem_t is not among our elems_t), this function is disabled. */
+  template <
+      typename elem_t, typename = std::enable_if_t<contains<elem_t>()>>
+  const elem_t *try_as() const {
+    ptr_getter_t<elem_t> try_as_helper;
+    apply(try_as_helper, *this);
+    return try_as_helper.ptr;
+  }
+
   private:
 
   /* Look up constants defined by our set of possible types, then use those
      constants to define a type for our data storage space.  The space must
      be large enough to hold the largest of our types and aligned correctly
      for the most alignment-critical of our types. */
-  using for_elems = variant::for_elems<elems_t...>;
-  static constexpr size_t max_alignof = for_elems::max_alignof;
-  static constexpr size_t max_sizeof = for_elems::max_sizeof;
-  using data_t = alignas(max_alignof) char[max_sizeof];
+  using data_t =
+      alignas(get_max_alignof<elems_t...>())
+      char[get_max_sizeof<elems_t...>()];
+
+  /* TODO */
+  template <typename elem_t>
+  struct ptr_getter_t final {
+
+    /* TODO */
+    using fn_t = void ();
+
+    /* TODO */
+    void operator()() {}
+
+    /* TODO */
+    template <typename other_t>
+    void operator()(const other_t &) {}
+
+    /* TODO */
+    void operator()(const elem_t &val) {
+      ptr = &val;
+    }
+
+    /* TODO */
+    const elem_t *ptr = nullptr;
+
+  };  // ptr_getter_t<elem_t>
 
   /* TODO */
   struct tag_t final {
@@ -314,21 +314,21 @@ class variant_t final {
 
   /* TODO */
   template <typename elem_t>
-  elem_t &as() & noexcept {
+  elem_t &force_as() & noexcept {
     assert(this);
     return reinterpret_cast<elem_t &>(data);
   }
 
   /* TODO */
   template <typename elem_t>
-  elem_t &&as() && noexcept {
+  elem_t &&force_as() && noexcept {
     assert(this);
     return reinterpret_cast<elem_t &&>(data);
   }
 
   /* TODO */
   template <typename elem_t>
-  const elem_t &as() const noexcept {
+  const elem_t &force_as() const noexcept {
     assert(this);
     return reinterpret_cast<const elem_t &>(data);
   }
@@ -339,20 +339,20 @@ class variant_t final {
     static const tag_t tag = {
       // move_construct
       [](variant_t &self, variant_t &&other) {
-        new (self.data) elem_t(std::move(other).as<elem_t>());
+        new (self.data) elem_t(std::move(other).force_as<elem_t>());
         other.reset();
       },
       // copy_construct
       [](variant_t &self, const variant_t &other) {
-        new (self.data) elem_t(other.as<elem_t>());
+        new (self.data) elem_t(other.force_as<elem_t>());
       },
       // destroy
       [](variant_t &self) {
-        self.as<elem_t>().~elem_t();
+        self.force_as<elem_t>().~elem_t();
       },
       // accept
       [](const variant_t &self, const visitor_t &visitor) {
-        visitor(self.as<elem_t>());
+        visitor(self.force_as<elem_t>());
       }
     };
     return &tag;
@@ -384,7 +384,7 @@ class variant_t final {
 };  // variant_t<elems_t...>
 
 /* ---------------------------------------------------------------------------
-TODO
+Unary functor application.
 --------------------------------------------------------------------------- */
 
 /* TODO */
@@ -606,7 +606,7 @@ struct for_fn<void (params_t...)> {
 /* Applies a functor to a variant, passing zero or more additional arguments,
    and possibly returning a value. */
 template <typename functor_t, typename... elems_t, typename... args_t>
-decltype(auto) apply(
+inline decltype(auto) apply(
     functor_t &functor, const variant_t<elems_t...> &that,
     args_t &&... args) {
   return for_fn<typename functor_t::fn_t>::apply(
@@ -616,7 +616,7 @@ decltype(auto) apply(
 /* Applies a temporary functor to a variant, passing zero or more additional
    arguments, and possibly returning a value. */
 template <typename functor_t, typename... elems_t, typename... args_t>
-decltype(auto) apply(
+inline decltype(auto) apply(
     functor_t &&functor, const variant_t<elems_t...> &that,
     args_t &&... args) {
   return for_fn<typename functor_t::fn_t>::apply(

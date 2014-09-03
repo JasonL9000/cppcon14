@@ -23,98 +23,98 @@ limitations under the License.
 using namespace std;
 using namespace cppcon14::variant;
 
-FIXTURE(max14) {
-  EXPECT_EQ(max14(101, 102), 102);
+using int_or_str_t = variant_t<int, string>;
+
+static const string empty, hello("hello"), doctor("doctor");
+
+FIXTURE(static_max) {
+  EXPECT_EQ(static_max(101, 102), 102);
+  EXPECT_EQ(static_max(102, 101), 102);
+  EXPECT_EQ(static_max(101, 101), 101);
 }
 
 FIXTURE(for_elems) {
-  using nothing_t = for_elems<>;
-  EXPECT_EQ(nothing_t::max_alignof, 0u);
-  EXPECT_EQ(nothing_t::max_sizeof, 0u);
-  using just_void_t = for_elems<void>;
-  EXPECT_EQ(just_void_t::max_alignof, 0u);
-  EXPECT_EQ(just_void_t::max_sizeof, 0u);
-  using just_char_t = for_elems<char>;
-  EXPECT_EQ(just_char_t::max_alignof, alignof(char));
-  EXPECT_EQ(just_char_t::max_sizeof, sizeof(char));
-  using char_and_void_t = for_elems<char, void>;
-  EXPECT_EQ(char_and_void_t::max_alignof, alignof(char));
-  EXPECT_EQ(char_and_void_t::max_sizeof, sizeof(char));
-  using char_and_short_t = for_elems<char, short>;
-  EXPECT_EQ(char_and_short_t::max_alignof, alignof(short));
-  EXPECT_EQ(char_and_short_t::max_sizeof, sizeof(short));
-  struct int_or_str_t { short a, b, c; };
-  using char_and_struct_t = for_elems<char, int_or_str_t>;
-  EXPECT_EQ(char_and_struct_t::max_alignof, alignof(short));
-  EXPECT_EQ(char_and_struct_t::max_sizeof, sizeof(int_or_str_t));
+  EXPECT_EQ((get_max_alignof<>)(), 0u);
+  EXPECT_EQ((get_max_sizeof<>)(), 0u);
+  EXPECT_EQ((get_max_alignof<char>)(), alignof(char));
+  EXPECT_EQ((get_max_sizeof<char>)(), sizeof(char));
+  EXPECT_EQ((get_max_alignof<char, short>)(), alignof(short));
+  EXPECT_EQ((get_max_sizeof<char, short>)(), sizeof(short));
+  EXPECT_EQ((get_max_alignof<short, char>)(), alignof(short));
+  EXPECT_EQ((get_max_sizeof<short, char>)(), sizeof(short));
+  EXPECT_TRUE((contains<int, int>()));
+  EXPECT_TRUE((contains<int, int, bool, char>()));
+  EXPECT_TRUE((contains<bool, int, bool, char>()));
+  EXPECT_TRUE((contains<char, int, bool, char>()));
+  EXPECT_FALSE((contains<int>()));
+  EXPECT_FALSE((contains<int, float>()));
+  EXPECT_FALSE((contains<float, int, bool, char>()));
 }
 
-FIXTURE(contains) {
-  EXPECT_TRUE((contains<void, void>::value));
-  EXPECT_TRUE((contains<void, void, bool, char>::value));
-  EXPECT_TRUE((contains<bool, void, bool, char>::value));
-  EXPECT_TRUE((contains<char, void, bool, char>::value));
-  EXPECT_FALSE((contains<void>::value));
-  EXPECT_FALSE((contains<void, int>::value));
-  EXPECT_FALSE((contains<int, void, bool, char>::value));
+FIXTURE(try_as) {
+  int_or_str_t a, b(101), c(hello);
+  EXPECT_FALSE(a.try_as<int>());
+  EXPECT_FALSE(a.try_as<string>());
+  if (EXPECT_TRUE(b.try_as<int>())) {
+    EXPECT_EQ(*b.try_as<int>(), 101);
+  }
+  EXPECT_FALSE(b.try_as<string>());
+  if (EXPECT_TRUE(c.try_as<string>())) {
+    EXPECT_EQ(*c.try_as<string>(), hello);
+  }
+  EXPECT_FALSE(c.try_as<int>());
 }
 
-using int_or_str_t = variant_t<int, string>;
-
+/* TODO */
 struct keeper_t final {
 
+  /* TODO */
   using fn_t = void ();
 
+  /* TODO */
   void operator()() {
     that_int = 0;
-    that_str = "";
+    that_str.clear();
   }
 
+  /* TODO */
   void operator()(int that) {
     that_int = that;
-    that_str = "";
+    that_str.clear();
   }
 
+  /* TODO */
   void operator()(const string &that) {
     that_int = 0;
     that_str = that;
   }
 
+  /* TODO */
   int that_int = 0;
 
+  /* TODO */
   string that_str;
 
 };  // keeper_t
 
 FIXTURE(keeper) {
-  int_or_str_t
-      a;
+  int_or_str_t a, b(101), c(hello);
   keeper_t keeper;
   keeper.that_int = 99;
-  keeper.that_str = "goner";
+  keeper.that_str = doctor;
   apply(keeper, a);
   EXPECT_EQ(keeper.that_int, 0);
-  EXPECT_EQ(keeper.that_str, "");
-  #if 0
-  int_or_str_t
-      a,
-      b(101),
-      c(string("yesterday"));
-  keeper_t keeper;
-  EXPECT_EQ(keeper.that_int, 0);
-  EXPECT_EQ(keeper.that_str, "");
+  EXPECT_EQ(keeper.that_str, empty);
   keeper.that_int = 99;
-  keeper.that_str = "goner";
-  apply(keeper, a);
-  EXPECT_EQ(keeper.that_int, 0);
-  EXPECT_EQ(keeper.that_str, "");
+  keeper.that_str = doctor;
   apply(keeper, b);
   EXPECT_EQ(keeper.that_int, 101);
-  EXPECT_EQ(keeper.that_str, "");
-  apply(keeper, b);
+  EXPECT_EQ(keeper.that_str, empty);
+  keeper.that_int = 99;
+  keeper.that_str = doctor;
+  apply(keeper, c);
   EXPECT_EQ(keeper.that_int, 0);
-  EXPECT_EQ(keeper.that_str, "yesterday");
-  #endif
+  EXPECT_EQ(keeper.that_str, hello);
 }
 
 /* TODO */
@@ -141,10 +141,7 @@ struct greeter_t final {
 };  // greeter_t
 
 FIXTURE(greeter) {
-  int_or_str_t
-      a,
-      b(101),
-      c(string("doctor"));
+  int_or_str_t a, b(101), c(doctor);
   EXPECT_EQ(apply(greeter_t(), a, "Hey there"), "Hey there, nobody.");
   EXPECT_EQ(apply(greeter_t(), b, "What's up"), "What's up, '101'.");
   EXPECT_EQ(apply(greeter_t(), c, "Hello"), "Hello, 'doctor'.");
