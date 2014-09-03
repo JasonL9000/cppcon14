@@ -84,7 +84,9 @@ struct for_elems<> {
 constexpr size_t for_elems<>::max_alignof;
 constexpr size_t for_elems<>::max_sizeof;
 
-/* TODO */
+/* This is the same as the std::max() function in '14.  It differs from '11
+   only in that it returns a constexpr.  When you upgrade to '14, you should
+   drop this function in favor of the standard one. */
 template <typename val_t>
 inline constexpr const val_t &max14(const val_t &lhs, const val_t &rhs) {
   return (lhs < rhs) ? rhs : lhs;
@@ -183,14 +185,14 @@ class variant_t final {
 
   /* Move-construct, leaving the donor void. */
   variant_t(variant_t &&that) noexcept {
-    (that.tag->move_construct)(data, that.data);
+    (that.tag->move_construct)(*this, std::move(that));
     tag = that.tag;
     that.tag = get_void_tag();
   }
 
   /* Copy-construct, leaving the exemplar intact. */
   variant_t(const variant_t &that) {
-    (that.tag->copy_construct)(data, that.data);
+    (that.tag->copy_construct)(*this, that);
     tag = that.tag;
   }
 
@@ -219,7 +221,7 @@ class variant_t final {
   /* Destroy. */
   ~variant_t() {
     assert(this);
-    (tag->destroy)(data);
+    (tag->destroy)(*this);
   }
 
   /* Move-assign, leaving the donor void. */
@@ -246,9 +248,18 @@ class variant_t final {
     return tag == get_void_tag();
   }
 
+  /* TODO */
   void accept(const visitor_t &visitor) const {
     assert(this);
-    (tag->accept)(data, visitor);
+    (tag->accept)(*this, visitor);
+  }
+
+  /* TODO */
+  variant_t &reset() noexcept {
+    assert(this);
+    this->~variant_t();
+    tag = get_void_tag();
+    return *this;
   }
 
   private:
@@ -264,41 +275,78 @@ class variant_t final {
 
   /* TODO */
   struct tag_t final {
-    void (*destroy)(data_t &) noexcept;
-    void (*move_construct)(data_t &self, data_t &other) noexcept;
-    void (*copy_construct)(data_t &self, const data_t &other);
-    void (*accept)(const data_t &self, const visitor_t &visitor);
+
+    /* TODO */
+    void (*move_construct)(variant_t &self, variant_t &&other) noexcept;
+
+    /* TODO */
+    void (*copy_construct)(variant_t &self, const variant_t &other);
+
+    /* TODO */
+    void (*destroy)(variant_t &) noexcept;
+
+    /* TODO */
+    void (*accept)(const variant_t &self, const visitor_t &visitor);
+
   };  // variant_t
 
-  /* The tag we use iff. we're void. */
-  static const tag_t *get_void_tag() noexcept {
-    static const tag_t tag = {
-      /* destroy */
-      [](data_t &) {},
-      /* move_construct */
-      [](data_t &, data_t &) {},
-      /* copy_construct */
-      [](data_t &, const data_t &) {},
-      /* accept */
-      [](const data_t &, const visitor_t &visitor) {
-        visitor();
-      }
-    };
-    return &tag;
+  /* TODO */
+  template <typename elem_t>
+  elem_t &as() & noexcept {
+    assert(this);
+    return reinterpret_cast<elem_t &>(data);
+  }
+
+  /* TODO */
+  template <typename elem_t>
+  elem_t &&as() && noexcept {
+    assert(this);
+    return reinterpret_cast<elem_t &&>(data);
+  }
+
+  /* TODO */
+  template <typename elem_t>
+  const elem_t &as() const noexcept {
+    assert(this);
+    return reinterpret_cast<const elem_t &>(data);
   }
 
   /* TODO */
   template <typename elem_t>
   static const tag_t *get_tag() noexcept {
     static const tag_t tag = {
-      /* destroy */
-      [](data_t &) {},
-      /* move_construct */
-      [](data_t &, data_t &) {},
-      /* copy_construct */
-      [](data_t &, const data_t &) {},
-      /* accept */
-      [](const data_t &, const visitor_t &visitor) {
+      // move_construct
+      [](variant_t &self, variant_t &&other) {
+        new (self.data) elem_t(std::move(other).as<elem_t>());
+        other.reset();
+      },
+      // copy_construct
+      [](variant_t &self, const variant_t &other) {
+        new (self.data) elem_t(other.as<elem_t>());
+      },
+      // destroy
+      [](variant_t &self) {
+        self.as<elem_t>().~elem_t();
+      },
+      // accept
+      [](const variant_t &self, const visitor_t &visitor) {
+        visitor(self.as<elem_t>());
+      }
+    };
+    return &tag;
+  }
+
+  /* The tag we use iff. we're void. */
+  static const tag_t *get_void_tag() noexcept {
+    static const tag_t tag = {
+      // move_construct
+      [](variant_t &, variant_t &&) {},
+      // copy_construct
+      [](variant_t &, const variant_t &) {},
+      // destroy
+      [](variant_t &) {},
+      // accept
+      [](const variant_t &, const visitor_t &visitor) {
         visitor();
       }
     };
@@ -311,7 +359,60 @@ class variant_t final {
   /* The data to be interpreted by our tag. */
   data_t data;
 
-};  // variant_t<elem_t>
+};  // variant_t<elems_t...>
+
+/* ---------------------------------------------------------------------------
+TODO
+--------------------------------------------------------------------------- */
+
+/* TODO */
+template <typename applied_t, typename visitor_t, typename... elems_t>
+struct applier_t;
+
+/* TODO */
+template <typename applied_t, typename visitor_t>
+struct applier_t<applied_t, visitor_t>
+    : visitor_t {
+
+  /* TODO */
+  applier_t(const applied_t &applied)
+      : applied(applied) {}
+
+  /* TODO */
+  virtual void operator()() const override final {
+    applied();
+  }
+
+  /* TODO */
+  const applied_t &applied;
+
+};  // applier_t<applied_t, visitor_t>
+
+/* TODO */
+template <
+    typename applied_t, typename visitor_t,
+    typename elem_t, typename... more_elems_t>
+struct applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
+    : applier_t<applied_t, visitor_t, more_elems_t...> {
+
+  /* TODO */
+  applier_t(const applied_t &applied)
+      : applier_t<applied_t, visitor_t, more_elems_t...>(applied) {}
+
+  /* TODO */
+  virtual void operator()(const elem_t &elem) const override final {
+    (this->applied)(elem);
+  }
+
+};  // applier_t<applied_t, visitor_t, elem_t, more_elems_t...>
+
+/* TODO */
+template <typename applied_t, typename... elems_t>
+void apply(const applied_t &applied, const variant_t<elems_t...> &arg) {
+  using applier_t =
+      variant::applier_t<applied_t, visitor_t<elems_t...>, elems_t...>;
+  arg.accept(applier_t(applied));
+}
 
 }  // variant
 }  // cppcon14
