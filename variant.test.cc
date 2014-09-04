@@ -25,8 +25,10 @@ Unit tests for and examples of variant_t.
 using namespace std;
 using namespace cppcon14::variant;
 
+/* A union of int and string types. */
 using int_or_str_t = variant_t<int, string>;
 
+/* A few string constants we'll use in various text fixtures. */
 static const string empty, hello("hello"), doctor("doctor");
 
 FIXTURE(static_max) {
@@ -67,34 +69,40 @@ FIXTURE(try_as) {
   EXPECT_FALSE(c.try_as<int>());
 }
 
-/* TODO */
+/* A type we'll use as a test of unary functor application.  It can be applied
+   to an instance of int_or_str_t and keeps a copy of whatever it finds there.
+   You can examine the functor after the application to see what it found. */
 struct keeper_t final {
 
-  /* TODO */
+  /* You must define a type called "fn1_t" in any structure you intend to
+     use as a unary variant functor.  The type must be a function describing
+     your overloads of operator().  You must give the return type as well
+     as the types of any non-variant (that is, extra) parameters taken.  In
+     this case, we return nothing and take nothing but a variant. */
   using fn1_t = void ();
 
-  /* TODO */
+  /* Handle the case when the variant is null. */
   void operator()(nullptr_t) {
     that_int = 0;
     that_str.clear();
   }
 
-  /* TODO */
+  /* Handle the case when the variant is an int. */
   void operator()(int that) {
     that_int = that;
     that_str.clear();
   }
 
-  /* TODO */
+  /* Handle the case when the variant is a string. */
   void operator()(const string &that) {
     that_int = 0;
     that_str = that;
   }
 
-  /* TODO */
+  /* The int we found, or 0 if we didn't find one. */
   int that_int = 0;
 
-  /* TODO */
+  /* The string we found, or empty if we didn't find one. */
   string that_str;
 
 };  // keeper_t
@@ -119,20 +127,24 @@ FIXTURE(keeper) {
   EXPECT_EQ(keeper.that_str, hello);
 }
 
-/* TODO */
+/* Another test of unary functor application.  This one takes an extra
+   argument and returns a string. */
 struct greeter_t final {
 
-  /* TODO */
+  /* The mandatory function type definition.  Here we indicate that we'll be
+     returning a string and expect a string to be passed to use after the
+     variant. */
   using fn1_t = string (const string &);
 
-  /* TODO */
+  /* Handle the case when the variant is null. */
   string operator()(nullptr_t, const string &greeting) {
     ostringstream strm;
     strm << greeting << ", nobody.";
     return strm.str();
   }
 
-  /* TODO */
+  /* Handle the cases when the variant is non-null.  We can use a template
+     here because we handle all the non-null cases the same way. */
   template <typename elem_t>
   string operator()(const elem_t &elem, const string &greeting) {
     ostringstream strm;
@@ -149,13 +161,17 @@ FIXTURE(greeter) {
   EXPECT_EQ(apply(greeter_t(), c, "Hello"), "Hello, 'doctor'.");
 }
 
-/* TODO */
+/* A type we'll use as a test of binary functor application.  It can be
+   applied to a pair of instances of int_or_str_t and returns a string
+   describing that they are. */
 struct pair_writer_t final {
 
-  /* TODO */
+  /* Just as the "fn1_t" type is mandatory for all unary functors, the "fn2_t"
+     type is mandatory for all binary functors.  It is similar to fn1_t but
+     assumes we will be passed a pair of variants instead of just one. */
   using fn2_t = string ();
 
-  /* TODO */
+  /* Handles all cases. */
   template <typename lhs_t, typename rhs_t>
   string operator()(const lhs_t &lhs, const rhs_t &rhs) {
     ostringstream strm;
@@ -165,6 +181,7 @@ struct pair_writer_t final {
     return strm.str();
   }
 
+  /* Writes a non-null value. */
   template <typename elem_t>
   static void write(ostream &strm, const elem_t &elem) {
     assert(&strm);
@@ -172,6 +189,7 @@ struct pair_writer_t final {
     strm << elem;
   }
 
+  /* Writes a null value. */
   static void write(ostream &strm, const nullptr_t &) {
     assert(&strm);
     strm << "null";
