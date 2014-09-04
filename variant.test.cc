@@ -148,7 +148,7 @@ FIXTURE(greeter) {
 }
 
 /* TODO */
-struct infix_t final {
+struct pair_writer_t final {
 
   /* TODO */
   using fn2_t = string ();
@@ -175,9 +175,12 @@ struct infix_t final {
     strm << "null";
   }
 
-};  // infix_t
+};  // pair_writer_t
 
-FIXTURE(infix) {
-  int_or_str_t lhs(101), rhs(202);
-  EXPECT_EQ(apply(infix_t(), lhs, rhs), "101, 202");
+FIXTURE(pair_writer) {
+  int_or_str_t nil, lhs(101), rhs(202);
+  EXPECT_EQ(apply(pair_writer_t(), lhs, rhs), "101, 202");
+  EXPECT_EQ(apply(pair_writer_t(), nil, rhs), "null, 202");
+  EXPECT_EQ(apply(pair_writer_t(), lhs, nil), "101, null");
+  EXPECT_EQ(apply(pair_writer_t(), nil, nil), "null, null");
 }
