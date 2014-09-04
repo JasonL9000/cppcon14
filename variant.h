@@ -13,7 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-TODO
+A stack-based discriminated union with a null state.
+
+See "variant.test.cc" for examples of use.
 --------------------------------------------------------------------------- */
 
 #pragma once
@@ -22,13 +24,14 @@ TODO
 #include <cstddef>
 #include <tuple>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 
 namespace cppcon14 {
 namespace variant {
 
 /* ---------------------------------------------------------------------------
-Compile-time utilities used internally by variant_t and its helpers.
+Compile-time utilities used internally by variant_t.
 --------------------------------------------------------------------------- */
 
 /* This is the same as the std::max() function except that it works as a
@@ -111,51 +114,32 @@ inline constexpr size_t get_max_sizeof() noexcept {
   return for_elems<elems_t...>::get_max_sizeof();
 }
 
-/* Apply arguments to a functor and cache the non-void result to a given
-   storage area. */
-template <typename ret_t, typename functor_t, typename... args_t>
-inline void apply_with_indirect_return(
-    ret_t *ret, functor_t &functor, args_t &&... args) {
-  assert(ret);
-  assert(&functor);
-  *ret = functor(std::forward<args_t>(args)...);
-}
-
-/* Apply arguments to a functor which returns void.  Note this overload is
-   differentiated from the one above by the leading void pointer. */
-template <typename functor_t, typename... args_t>
-inline void apply_with_indirect_return(
-    void *, functor_t &functor, args_t &&... args) {
-  assert(&functor);
-  functor(std::forward<args_t>(args)...);
-}
-
 /* ---------------------------------------------------------------------------
 The base class for all visitors to variants.
 --------------------------------------------------------------------------- */
 
-/* TODO */
+/* We'll define the visitor class recursively. */
 template <typename... elems_t>
 struct visitor_t;
 
-/* TODO */
+/* The base case handles a variant which is null. */
 template <>
 struct visitor_t<> {
 
-  /* TODO */
+  /* Override to handle a null variant. */
   virtual void operator()(nullptr_t) const = 0;
 
 };  // visitor_t<>
 
-/* TODO */
+/* Each iteration of the recursive case handles one type of element. */
 template <typename elem_t, typename... more_elems_t>
 struct visitor_t<elem_t, more_elems_t...>
     : visitor_t<more_elems_t...> {
 
-  /* TODO */
+  /* Pull the operator() overloads above us into scope. */
   using visitor_t<more_elems_t...>::operator();
 
-  /* TODO */
+  /* Override to handle a non-null variant. */
   virtual void operator()(const elem_t &) const = 0;
 
 };  // visitor_t<elem_t, more_elems_t...>
@@ -164,12 +148,12 @@ struct visitor_t<elem_t, more_elems_t...>
 The variant class template itself.
 --------------------------------------------------------------------------- */
 
-/* TODO */
+/* A stack-based discriminated union with a null state. */
 template <typename... elems_t>
 class variant_t final {
   public:
 
-  /* TODO */
+  /* The type of visitor we accept. */
   using visitor_t = variant::visitor_t<elems_t...>;
 
   /* True iff. elem_t is among our elems_t; that is, if this variant can
@@ -250,13 +234,28 @@ class variant_t final {
     return tag == get_null_tag();
   }
 
-  /* TODO */
+  /* Try to access our contents as a particular type.  If we don't currently
+     contain a value of the requested type, throw std::bad_cast.  If we can
+     never be of the requested type (that is, elem_t is not among our
+     elems_t), this function is disabled. */
+  template <
+      typename elem_t, typename = std::enable_if_t<contains<elem_t>()>>
+  const elem_t &as() const {
+    assert(this);
+    const elem_t *ptr = try_as<elem_t>();
+    if (!ptr) {
+      throw std::bad_cast();
+    }
+    return *ptr;
+  }
+
+  /* Accept the visitor and dispatch based on our contents. */
   void accept(const visitor_t &visitor) const {
     assert(this);
     (tag->accept)(*this, visitor);
   }
 
-  /* TODO */
+  /* Be null. */
   variant_t &reset() noexcept {
     assert(this);
     this->~variant_t();
@@ -264,15 +263,17 @@ class variant_t final {
     return *this;
   }
 
-  /* Access our state as a particular type.  If we're not currently of the
-     requested type, return null.  If we can never be of the requested type
-     (that is, elem_t is not among our elems_t), this function is disabled. */
+  /* Try to access our contents as a particular type.  If we don't currently
+     contain a value of the requested type, return a null pointer.  If we can
+     never be of the requested type (that is, elem_t is not among our
+     elems_t), this function is disabled. */
   template <
       typename elem_t, typename = std::enable_if_t<contains<elem_t>()>>
   const elem_t *try_as() const {
-    ptr_getter_t<elem_t> try_as_helper;
-    apply(try_as_helper, *this);
-    return try_as_helper.ptr;
+    assert(this);
+    try_as_functor_t<elem_t> try_as_functor;
+    apply(try_as_functor, *this);
+    return try_as_functor.ptr;
   }
 
   private:
@@ -285,69 +286,74 @@ class variant_t final {
       alignas(get_max_alignof<elems_t...>())
       char[get_max_sizeof<elems_t...>()];
 
-  /* TODO */
+  /* The functor used by try_as(), above. */
   template <typename elem_t>
-  struct ptr_getter_t final {
+  struct try_as_functor_t final {
 
-    /* TODO */
+    /* The signature of our operator() overloads, sans variant. */
     using fn1_t = void ();
 
-    /* TODO */
+    /* Do nothing for a null variant. */
     void operator()(nullptr_t) {}
 
-    /* TODO */
+    /* Do nothing for a variant of another type. */
     template <typename other_t>
     void operator()(const other_t &) {}
 
-    /* TODO */
+    /* Return a pointer to the value of a variant matching our type. */
     void operator()(const elem_t &val) {
+      assert(this);
       ptr = &val;
     }
 
-    /* TODO */
+    /* After application, this either points to the value or remains null. */
     const elem_t *ptr = nullptr;
 
-  };  // ptr_getter_t<elem_t>
+  };  // variant_t<elems_t...>::try_as_functor_t<elem_t>
 
-  /* TODO */
+  /* A variant keeps track of what state its in by keeping a pointer to an
+     instance of this structure.  Think of it as a hand-rolled vtable,
+     containing pointers to the functions that do the work of the variant.
+     The get_tag() and get_null_tag() functions, below, are responsible for
+     defining the instances of this type. */
   struct tag_t final {
 
-    /* TODO */
+    /* Move other into self and set other null. */
     void (*move_construct)(variant_t &self, variant_t &&other) noexcept;
 
-    /* TODO */
+    /* Copy other into self. */
     void (*copy_construct)(variant_t &self, const variant_t &other);
 
-    /* TODO */
+    /* Destroy self. */
     void (*destroy)(variant_t &) noexcept;
 
-    /* TODO */
+    /* Accept a visitor on behalf of self. */
     void (*accept)(const variant_t &self, const visitor_t &visitor);
 
   };  // variant_t
 
-  /* TODO */
+  /* Force our storage area into type. */
   template <typename elem_t>
   elem_t &force_as() & noexcept {
     assert(this);
     return reinterpret_cast<elem_t &>(data);
   }
 
-  /* TODO */
+  /* Force our storage area into type. */
   template <typename elem_t>
   elem_t &&force_as() && noexcept {
     assert(this);
     return reinterpret_cast<elem_t &&>(data);
   }
 
-  /* TODO */
+  /* Force our storage area into type. */
   template <typename elem_t>
   const elem_t &force_as() const noexcept {
     assert(this);
     return reinterpret_cast<const elem_t &>(data);
   }
 
-  /* TODO */
+  /* The tag we use when we contain an instance of elem_t. */
   template <typename elem_t>
   static const tag_t *get_tag() noexcept {
     static const tag_t tag = {
@@ -389,19 +395,53 @@ class variant_t final {
     return &tag;
   }
 
-  /* TODO.  Never null. */
+  /* The tag which takes action for us.  Never null. */
   const tag_t *tag;
 
-  /* The data to be interpreted by our tag. */
+  /* The data to be interpreted by our tag.  This always passes through one
+     of the overloads of force_as() before we use it. */
   data_t data;
 
 };  // variant_t<elems_t...>
 
 /* ---------------------------------------------------------------------------
-Unary functor application.
+As we deal with applying functors (in the next two big sections), it would be
+handy not to have to cope with differences between those which return a value
+and those which return void.  The following two function overloads unify the
+semantics of these cases by returning the result, if any, via indirection.  A
+function which returns a value must be given a non-null pointer to a location
+in which to store its result.  A function which returns void must be given a
+void pointer, which will be ignored an so can (and should) be null.
 --------------------------------------------------------------------------- */
 
-/* Definitions of visitors and their helpers used by for_fn1<>, below. */
+/* Apply arguments to a functor and cache the non-void result to a given
+   storage area. */
+template <typename ret_t, typename functor_t, typename... args_t>
+inline void apply_with_indirect_return(
+    ret_t *ret, functor_t &functor, args_t &&... args) {
+  assert(ret);
+  assert(&functor);
+  *ret = functor(std::forward<args_t>(args)...);
+}
+
+/* Apply arguments to a functor which returns void.  Note this overload is
+   differentiated from the one above by the leading void pointer. */
+template <typename functor_t, typename... args_t>
+inline void apply_with_indirect_return(
+    void *, functor_t &functor, args_t &&... args) {
+  assert(&functor);
+  functor(std::forward<args_t>(args)...);
+}
+
+/* ---------------------------------------------------------------------------
+We now define overloads of apply() which take a functor, a variant, and zero
+or more additional arguments.  These allow you to invoke unary operations on
+variants without having to write your own visitors.  To do this, we provide
+canned visitors, called appliers, which adapt your functor to the visitor-
+style dispatch used by variant_t.
+--------------------------------------------------------------------------- */
+
+/* Definitions of appliers used by for_fn1<>, below. */
 template <typename ret_t, typename... params_t>
 struct fn1_appliers {
 
@@ -439,7 +479,8 @@ struct fn1_appliers {
     /* The functor we will apply. */
     functor_t &functor;
 
-    /* The location in which to cache the result of the functor. */
+    /* The location in which to cache the result of the functor.  If the
+       functor returns void, this is ignored and should be null. */
     ret_t *ret;
 
     /* The extra arguments (beyond the variant) to pass to the functor. */
@@ -576,10 +617,16 @@ inline decltype(auto) apply(
 }
 
 /* ---------------------------------------------------------------------------
-Binary functor application.
+We now define overloads of apply() which take a functor, a pair of variants,
+and zero or more additional arguments.  These allow you to invoke binary
+operations on variants without having to write your own chain of visitors.  To
+do this, we provide canned visitors in pairs, called lhs appliers and rhs
+appliers.  The lhs applier visits the lhs variant and forwards the lhs value
+to the rhs applier.  The rhs applier visits the rhs variant and, now in
+possession of both left- and right-hand values, dispatches to your functor.
 --------------------------------------------------------------------------- */
 
-/* Definitions of visitors and their helpers used by for_fn2<>, below. */
+/* Definitions of appliers and their helpers used by for_fn2<>, below. */
 template <typename ret_t, typename... params_t>
 struct fn2_appliers {
 
@@ -613,7 +660,7 @@ struct fn2_appliers {
         : functor(functor), lhs_elem(lhs_elem), ret(ret), tuple(tuple) {}
 
     /* Override of the definition in rhs_visitor_t.  This is version used when
-       the rhs-variant is null.  It's just a hand-ff to apply_tuple(),
+       the rhs-variant is null.  It's just a hand-off to apply_tuple(),
        below. */
     virtual void operator()(nullptr_t) const override final {
       assert(this);
@@ -628,7 +675,8 @@ struct fn2_appliers {
     /* The value discovered when we visited the lhs variant. */
     const lhs_elem_t &lhs_elem;
 
-    /* The location in which to cache the result of the functor. */
+    /* The location in which to cache the result of the functor.  If the
+       functor returns void, this is ignored and should be null. */
     ret_t *ret;
 
     /* The extra arguments (beyond the variants) to pass to the functor. */
@@ -636,9 +684,9 @@ struct fn2_appliers {
 
     private:
 
-    /* Passes the previously discovered lhs elem and the newly discovered
-       rhs elem (which is null), along with the arguments unrolled from
-       the tuple, to the functor, and caches the value returned. */
+    /* Passes the previously discovered lhs value and the newly discovered
+       rhs value (which is null), along with the arguments unrolled from
+       the tuple, to the functor, caching the value returned, if any. */
     template <size_t... i>
     void apply_tuple(std::index_sequence<i...> &&) const {
       assert(this);
@@ -680,9 +728,9 @@ struct fn2_appliers {
     using recur_t = rhs_applier_t<
         functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...>;
 
-    /* Passes the previously discovered lhs elem and the newly discovered
-       rhs elem (which is non-null), along with the arguments unrolled from
-       the tuple, to the functor, and caches the value returned. */
+    /* Passes the previously discovered lhs value and the newly discovered
+       rhs value (which is non-null), along with the arguments unrolled from
+       the tuple, to the functor, caching the value returned, if any. */
     template <size_t... i>
     void apply_tuple(
         const rhs_elem_t &rhs_elem, std::index_sequence<i...> &&) const {
@@ -697,22 +745,26 @@ struct fn2_appliers {
       //       functor_t, lhs_elem_t, rhs_visitor,
       //       rhs_elem_t, more_rhs_elems_t...>
 
-  /* TODO */
+  /* We need to define our lhs applier with an understanding of what the
+     rhs applier will be, so we do so in this space. */
   template <typename functor_t, typename... rhs_elems_t>
   struct for_rhs {
 
-    /* TODO */
+    /* The type of variant we have on our right-hand side.  We need to know
+       this so we can cache a reference to it while we visit the left-hand
+       side. */
     using rhs_variant_t = variant_t<rhs_elems_t...>;
 
-    /* This will be our visitor to our left-hand side, recursively defined.
-       TODO */
+    /* This will be our visitor, recursively defined, to the lhs variant.  It
+       functions as an adapter, passing control from the virtual functions of
+       the visitor to rhs applier. */
     template <typename lhs_visitor_t, typename... lhs_elems_t>
     class lhs_applier_t;
 
-    /* The base case inherits from the visitor for the variant and caches
-       references to the functor and to the storage location for the value
-       to be returned by the functor, as well as the extra (non-
-       variant) arguments to be passed to the functor.  This class also
+    /* The base case inherits from the visitor for the lhs variant and caches
+       references to the functor, to the rhs variant, to the storage location
+       for the value to be returned by the functor, and to the tuple of extra
+       (non-variant) arguments to be passed to the functor.  This class also
        defines the nullary operator() override. */
     template <typename lhs_visitor_t>
     class lhs_applier_t<lhs_visitor_t>
@@ -726,8 +778,8 @@ struct fn2_appliers {
           : functor(functor), rhs_variant(rhs_variant),
             ret(ret), tuple(std::forward_as_tuple(params)...) {}
 
-      /* Override of the definition in visitor_t.  This is the nullary version,
-         used when the variant is null.  It is just a hand-ff to apply_tuple(),
+      /* Override of the definition in lhs_visitor_t.  This is version used
+         when the variant is null.  It is just a hand-off to apply_tuple(),
          below. */
       virtual void operator()(nullptr_t) const override final {
         assert(this);
@@ -742,7 +794,8 @@ struct fn2_appliers {
       /* The right-hand side we will visit next. */
       const rhs_variant_t &rhs_variant;
 
-      /* The location in which to cache the result of the functor. */
+      /* The location in which to cache the result of the functor.  If the
+         functor returns void, this is ignored and should be null. */
       ret_t *ret;
 
       /* The extra arguments (beyond the variants) to pass to the functor. */
@@ -750,9 +803,9 @@ struct fn2_appliers {
 
       private:
 
-      /* Passes the lhs variant state and our rhs state (which is null) as
-         well as the unrolled cached tuple of extra arguments into an
-         application of the functor and caches the value returned. */
+      /* Passes the functor, the lhs value (which is null), the location of
+         the returned value cache, and the tuple of extra arguments to the rhs
+         applier and visits the rhs variant. */
       template <size_t... i>
       void apply_tuple(std::index_sequence<i...> &&) const {
         assert(this);
@@ -765,8 +818,8 @@ struct fn2_appliers {
         //   ::for_rhs<functor_t, rhs_elems_t...>
         //   ::lhs_applier_t<lhs_visitor_t>
 
-    /* Each iteration of the recursive case defines a unary overload of
-       operator(). */
+    /* Each iteration of this recursive case defines an overload of
+       operator() for some element of the lhs variant. */
     template <
         typename lhs_visitor_t,
         typename lhs_elem_t, typename... more_lhs_elems_t>
@@ -782,8 +835,8 @@ struct fn2_appliers {
                 functor, rhs_variant, ret,
                 std::forward<params_t>(params)...) {}
 
-      /* Override of the definition in visitor_t.  This is the unary version,
-         used when the variant is non-null.  It is just a hand-ff to
+      /* Override of the definition in lhs_visitor_t.  This is version used
+         when the variant is non-null.  It is just a hand-off to
          apply_tuple(), below. */
       virtual void operator()(
           const lhs_elem_t &lhs_elem) const override final {
@@ -796,9 +849,9 @@ struct fn2_appliers {
       /* The base class to which we recur. */
       using recur_t = lhs_applier_t<lhs_visitor_t, more_lhs_elems_t...>;
 
-      /* Passes the variant state as well as the unrolled cached tuple of extra
-         arguments into an application of the functor and caches the valued
-         returned. */
+      /* Passes the functor, the lhs value (which is non-null), the location
+         of the returned value cache, and the tuple of extra arguments to the
+         rhs applier and visits the rhs variant. */
       template <size_t... i>
       void apply_tuple(
           const lhs_elem_t &lhs_elem, std::index_sequence<i...> &&) const {
