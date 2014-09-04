@@ -14,11 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 TODO
-
-separate visitor into accessor and mutator
-add construction between unions of intersecting sets, with bad_cast
-
-TODO
 --------------------------------------------------------------------------- */
 
 #pragma once
@@ -389,7 +384,7 @@ Unary functor application.
 
 /* A helper for picking apart a template parameter of function type and
    defining the visitors used to apply such a functor to a variant. */
-template <typename fn_t>
+template <typename fn1_t>
 struct for_fn1;
 
 /* Explicit specialization for a function which returns non-void. */
@@ -405,8 +400,8 @@ struct for_fn1<ret_t (params_t...)> {
   /* The base case inherits from the visitor for the variant and caches
      references to the functor and to the storage location for the value
      to be returned by the functor, as well as the extra (non-
-     variant) arguments to be passed to the functor.  This class also
-     defines the nullary operator() override. */
+     variant) arguments to be passed to the functor.  This base case also
+     handles visiting a null variant. */
   template <typename functor_t, typename visitor_t>
   class applier_t<functor_t, visitor_t>
       : public visitor_t {
@@ -514,8 +509,8 @@ struct for_fn1<void (params_t...)> {
 
   /* The base case inherits from the visitor for the variant and caches
      references to the functor as well as the extra (non-variant) arguments
-     to be passed to the functor.  This class also defines the nullary
-     operator() override. */
+     to be passed to the functor.  This base case also handles visiting a
+     null variant. */
   template <typename functor_t, typename visitor_t>
   class applier_t<functor_t, visitor_t>
       : public visitor_t {
@@ -604,23 +599,35 @@ struct for_fn1<void (params_t...)> {
 
 };  // for_fn1<void (params_t...)>
 
-/* Applies a functor to a variant, passing zero or more additional arguments,
-   and possibly returning a value. */
-template <typename functor_t, typename... elems_t, typename... args_t>
+/* ---------------------------------------------------------------------------
+These two overloads of apply() differ only in how they bind to their functor:
+the first uses an lvalue, the second an rvalue.  In each case, apply() applies
+the given functor to a given variant, possibly returning a value.  The functor
+type must define a local type called "fn1_t" which must give the signature
+shared by the functor's handler functions; that is, the function signature
+with the leading variant parameter omitted.  We use SFINAE based on the
+presence of this magic name to enable these overloads of apply().
+--------------------------------------------------------------------------- */
+
+/* Functor as lvalue. */
+template <
+    typename functor_t, typename... elems_t, typename... args_t,
+    typename fn1_t = typename functor_t::fn1_t>
 inline decltype(auto) apply(
     functor_t &functor, const variant_t<elems_t...> &that,
     args_t &&... args) {
-  return for_fn1<typename functor_t::fn1_t>::apply(
+  return for_fn1<fn1_t>::apply(
       functor, that, std::forward<args_t>(args)...);
 }
 
-/* Applies a temporary functor to a variant, passing zero or more additional
-   arguments, and possibly returning a value. */
-template <typename functor_t, typename... elems_t, typename... args_t>
+/* Functor as rvalue. */
+template <
+    typename functor_t, typename... elems_t, typename... args_t,
+    typename fn1_t = typename functor_t::fn1_t>
 inline decltype(auto) apply(
     functor_t &&functor, const variant_t<elems_t...> &that,
     args_t &&... args) {
-  return for_fn1<typename functor_t::fn1_t>::apply(
+  return for_fn1<fn1_t>::apply(
       functor, that, std::forward<args_t>(args)...);
 }
 
@@ -631,34 +638,41 @@ Binary functor application.
 /* A helper for picking apart a template parameter of function type and
    defining the visitors used to apply such a functor to a pair of
    variants. */
-template <typename fn_t>
+template <typename fn2_t>
 struct for_fn2;
 
 /* Explicit specialization for a function which returns non-void. */
 template <typename ret_t, typename... params_t>
 struct for_fn2<ret_t (params_t...)> {
 
-  /* TODO */
+  /* The type of tuple we use when forwarding the extra (that is, non-variant)
+     function parameters. */
   using tuple_t = std::tuple<params_t &&...>;
 
-  /* TODO */
+  /* This will be our visitor, recursively defined, to the rhs variant.  It
+     functions as an adapter, passing control from the virtual functions of
+     the visitor to the appropriate overloads of operator() in the functor. */
   template <
-      typename functor_t, typename lhs_t, typename rhs_visitor_t,
+      typename functor_t, typename lhs_elem_t, typename rhs_visitor_t,
       typename... rhs_elems_t>
   class rhs_applier_t;
 
-  /* TODO */
+  /* The base case inherits from the visitor for the rhs variant and caches
+     references to the functor, to the value discovered while visiting the lhs
+     variant, to the storage location for the value to be returned by the
+     functor, and to the tuple of extra arguments to be passed to the functor.
+     This base case also handles visiting a null rhs variant. */
   template <
-      typename functor_t, typename lhs_t, typename rhs_visitor_t>
-  class rhs_applier_t<functor_t, lhs_t, rhs_visitor_t>
+      typename functor_t, typename lhs_elem_t, typename rhs_visitor_t>
+  class rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t>
       : public rhs_visitor_t {
     public:
 
-    /* TODO */
+    /* Cache stuff for later, when operator() gets dispatched. */
     rhs_applier_t(
-        functor_t &functor, const lhs_t &lhs,
+        functor_t &functor, const lhs_elem_t &lhs_elem,
         ret_t &ret, const tuple_t &tuple)
-        : functor(functor), lhs(lhs), ret(ret), tuple(tuple) {}
+        : functor(functor), lhs_elem(lhs_elem), ret(ret), tuple(tuple) {}
 
     /* Override of the definition in rhs_visitor_t.  This is version used when
        the rhs-variant is null.  It is just a hand-ff to apply_tuple(),
@@ -673,14 +687,14 @@ struct for_fn2<ret_t (params_t...)> {
     /* The functor we will apply. */
     functor_t &functor;
 
-    /* The value discovered by the lhs applier. */
-    const lhs_t &lhs;
+    /* The value discovered when we visited the lhs variant. */
+    const lhs_elem_t &lhs_elem;
 
     /* The location in which to cache the result of the functor. */
     ret_t &ret;
 
     /* The extra arguments (beyond the variants) to pass to the functor. */
-    const tuple_t tuple;
+    const tuple_t &tuple;
 
     private:
 
@@ -688,25 +702,25 @@ struct for_fn2<ret_t (params_t...)> {
     template <size_t... i>
     void apply_tuple(std::index_sequence<i...> &&) const {
       assert(this);
-      functor(lhs, nullptr, std::get<i>(tuple)...);
+      functor(lhs_elem, nullptr, std::get<i>(tuple)...);
     }
 
   };  /* for_fn2<ret_t (params_t...)>
-          ::rhs_applied_t<functor_t, lhs_t, rhs_visitor> */
+          ::rhs_applied_t<functor_t, lhs_elem_t, rhs_visitor> */
 
   /* TODO */
   template <
-      typename functor_t, typename lhs_t, typename rhs_visitor_t,
+      typename functor_t, typename lhs_elem_t, typename rhs_visitor_t,
       typename rhs_elem_t, typename... more_rhs_elems_t>
-  class rhs_applier_t<functor_t, lhs_t, rhs_visitor_t, rhs_elem_t, more_rhs_elems_t...>
-      : public rhs_applier_t<functor_t, lhs_t, rhs_visitor_t, more_rhs_elems_t...> {
+  class rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t, rhs_elem_t, more_rhs_elems_t...>
+      : public rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...> {
     public:
 
     /* TODO */
     rhs_applier_t(
-        functor_t &functor, const lhs_t &lhs,
+        functor_t &functor, const lhs_elem_t &lhs_elem,
         ret_t &ret, const tuple_t &tuple)
-        : recur_t(functor, lhs, ret, tuple) {}
+        : recur_t(functor, lhs_elem, ret, tuple) {}
 
     /* Override of the definition in rhs_visitor_t.  This is version used when
        the rhs-variant is non-null.  It is just a hand-ff to apply_tuple(),
@@ -720,18 +734,18 @@ struct for_fn2<ret_t (params_t...)> {
 
     /* TODO */
     using recur_t =
-        rhs_applier_t<functor_t, lhs_t, rhs_visitor_t, more_rhs_elems_t...>;
+        rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...>;
 
     /* TODO */
     template <size_t... i>
     void apply_tuple(
         const rhs_elem_t &rhs_elem, std::index_sequence<i...> &&) const {
       assert(this);
-      this->ret = this->functor(this->lhs, rhs_elem, std::get<i>(this->tuple)...);
+      this->ret = this->functor(this->lhs_elem, rhs_elem, std::get<i>(this->tuple)...);
     }
 
   };  /* for_fn2<ret_t (params_t...)>
-          ::rhs_applied_t<functor_t, lhs_t, rhs_visitor, rhs_elem_t, more_rhs_elems_t...> */
+          ::rhs_applied_t<functor_t, lhs_elem_t, rhs_visitor, rhs_elem_t, more_rhs_elems_t...> */
 
   /* TODO */
   template <typename functor_t, typename... rhs_elems_t>
@@ -786,7 +800,9 @@ struct for_fn2<ret_t (params_t...)> {
 
       private:
 
-      /* TODO */
+      /* Passes the lhs variant state and our rhs state (which is null) as
+         well as the unrolled cached tuple of extra arguments into an
+         application of the functor and caches the value returned. */
       template <size_t... i>
       void apply_tuple(std::index_sequence<i...> &&) const {
         assert(this);
@@ -869,31 +885,40 @@ struct for_fn2<ret_t (params_t...)> {
 
 };  // for_fn2<ret_t (params_t...)>
 
-/* Applies a functor to a pair of variants, passing zero or more additional
-   arguments, and possibly returning a value. */
+/* ---------------------------------------------------------------------------
+These two overloads of apply() differ only in how they bind to their functor:
+the first uses an lvalue, the second an rvalue.  In each case, apply() applies
+the given functor to a given pair of variants, lhs and rhs, possibly returning
+a value.  The functor type must define a local type called "fn2_t" which must
+give the signature shared by the functor's handler functions; that is, the
+function signature with the two leading variant parameters omitted.  We use
+SFINAE based on the presence of this magic name to enable these overloads of
+apply().
+--------------------------------------------------------------------------- */
+
+/* Functor as lvalue. */
 template <
     typename functor_t, typename... lhs_elems_t, typename... rhs_elems_t,
-    typename... args_t>
+    typename... args_t, typename fn2_t = typename functor_t::fn2_t>
 inline decltype(auto) apply(
     functor_t &functor,
     const variant_t<lhs_elems_t...> &lhs,
     const variant_t<rhs_elems_t...> &rhs,
     args_t &&... args) {
-  return for_fn2<typename functor_t::fn2_t>::apply(
+  return for_fn2<fn2_t>::apply(
       functor, lhs, rhs, std::forward<args_t>(args)...);
 }
 
-/* Applies a temporary functor to a pair of variants, passing zero or more
-   additional arguments, and possibly returning a value. */
+/* Functor as rvalue. */
 template <
     typename functor_t, typename... lhs_elems_t, typename... rhs_elems_t,
-    typename... args_t>
-inline decltype(auto) apply2(
+    typename... args_t, typename fn2_t = typename functor_t::fn2_t>
+inline decltype(auto) apply(
     functor_t &&functor,
     const variant_t<lhs_elems_t...> &lhs,
     const variant_t<rhs_elems_t...> &rhs,
     args_t &&... args) {
-  return for_fn2<typename functor_t::fn2_t>::apply(
+  return for_fn2<fn2_t>::apply(
       functor, lhs, rhs, std::forward<args_t>(args)...);
 }
 

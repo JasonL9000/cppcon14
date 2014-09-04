@@ -179,5 +179,5 @@ struct infix_t final {
 
 FIXTURE(infix) {
   int_or_str_t lhs(101), rhs(202);
-  EXPECT_EQ(apply2(infix_t(), lhs, rhs), "101, 202");
+  EXPECT_EQ(apply(infix_t(), lhs, rhs), "101, 202");
 }
