@@ -69,10 +69,10 @@ FIXTURE(try_as) {
 struct keeper_t final {
 
   /* TODO */
-  using fn_t = void ();
+  using fn1_t = void ();
 
   /* TODO */
-  void operator()() {
+  void operator()(nullptr_t) {
     that_int = 0;
     that_str.clear();
   }
@@ -121,10 +121,10 @@ FIXTURE(keeper) {
 struct greeter_t final {
 
   /* TODO */
-  using fn_t = string (const string &);
+  using fn1_t = string (const string &);
 
   /* TODO */
-  string operator()(const string &greeting) {
+  string operator()(nullptr_t, const string &greeting) {
     ostringstream strm;
     strm << greeting << ", nobody.";
     return strm.str();
@@ -145,4 +145,39 @@ FIXTURE(greeter) {
   EXPECT_EQ(apply(greeter_t(), a, "Hey there"), "Hey there, nobody.");
   EXPECT_EQ(apply(greeter_t(), b, "What's up"), "What's up, '101'.");
   EXPECT_EQ(apply(greeter_t(), c, "Hello"), "Hello, 'doctor'.");
+}
+
+/* TODO */
+struct infix_t final {
+
+  /* TODO */
+  using fn2_t = string ();
+
+  /* TODO */
+  template <typename lhs_t, typename rhs_t>
+  string operator()(const lhs_t &lhs, const rhs_t &rhs) {
+    ostringstream strm;
+    write(strm, lhs);
+    strm << ", ";
+    write(strm, rhs);
+    return strm.str();
+  }
+
+  template <typename elem_t>
+  static void write(ostream &strm, const elem_t &elem) {
+    assert(&strm);
+    assert(&elem);
+    strm << elem;
+  }
+
+  static void write(ostream &strm, const nullptr_t &) {
+    assert(&strm);
+    strm << "null";
+  }
+
+};  // infix_t
+
+FIXTURE(infix) {
+  int_or_str_t lhs(101), rhs(202);
+  EXPECT_EQ(apply2(infix_t(), lhs, rhs), "101, 202");
 }
