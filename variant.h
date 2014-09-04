@@ -169,19 +169,6 @@ class variant_t final {
     tag = get_null_tag();
   }
 
-  /* Move-construct, leaving the donor null. */
-  variant_t(variant_t &&that) noexcept {
-    (that.tag->move_construct)(*this, std::move(that));
-    tag = that.tag;
-    that.tag = get_null_tag();
-  }
-
-  /* Copy-construct, leaving the exemplar intact. */
-  variant_t(const variant_t &that) {
-    (that.tag->copy_construct)(*this, that);
-    tag = that.tag;
-  }
-
   /* Move-construct from a donor element, leaving the donor 'empty'.  If we
      cannot assume the requested type (that is, if elem_t is not among our
      elems_t), this constructor is disabled. */
@@ -204,10 +191,28 @@ class variant_t final {
     tag = get_tag<elem_t>();
   }
 
+  /* Move-construct, leaving the donor null. */
+  variant_t(variant_t &&that) noexcept {
+    tag = that.tag;
+    (tag->move_construct)(*this, std::move(that));
+  }
+
+  /* Copy-construct, leaving the exemplar intact. */
+  variant_t(const variant_t &that) {
+    (that.tag->copy_construct)(*this, that);
+    tag = that.tag;
+  }
+
   /* Destroy. */
   ~variant_t() {
     assert(this);
     (tag->destroy)(*this);
+  }
+
+  /* True iff. we're not null. */
+  operator bool() const noexcept {
+    assert(this);
+    return tag != get_null_tag();
   }
 
   /* Move-assign, leaving the donor null. */
@@ -226,12 +231,6 @@ class variant_t final {
     assert(this);
     assert(&that);
     return *this = variant_t(that);
-  }
-
-  /* True iff. we're not null. */
-  operator bool() const noexcept {
-    assert(this);
-    return tag == get_null_tag();
   }
 
   /* Try to access our contents as a particular type.  If we don't currently
@@ -253,6 +252,12 @@ class variant_t final {
   void accept(const visitor_t &visitor) const {
     assert(this);
     (tag->accept)(*this, visitor);
+  }
+
+  /* The std::type_info for our contents, or a null pointer if we're null. */
+  const std::type_info *get_type_info() const noexcept {
+    assert(this);
+    return (tag->get_type_info)();
   }
 
   /* Be null. */
@@ -330,6 +335,9 @@ class variant_t final {
     /* Accept a visitor on behalf of self. */
     void (*accept)(const variant_t &self, const visitor_t &visitor);
 
+    /* The std::type_info we handle, or a null pointer if we handle null. */
+    const std::type_info *(*get_type_info)() noexcept;
+
   };  // variant_t
 
   /* Force our storage area into type. */
@@ -373,6 +381,10 @@ class variant_t final {
       // accept
       [](const variant_t &self, const visitor_t &visitor) {
         visitor(self.force_as<elem_t>());
+      },
+      // get_type_info
+      []() {
+        return &typeid(elem_t);
       }
     };
     return &tag;
@@ -390,6 +402,10 @@ class variant_t final {
       // accept
       [](const variant_t &, const visitor_t &visitor) {
         visitor(nullptr);
+      },
+      // get_type_info
+      []() {
+        return static_cast<const std::type_info *>(nullptr);
       }
     };
     return &tag;

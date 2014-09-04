@@ -55,6 +55,78 @@ FIXTURE(for_elems) {
   EXPECT_FALSE((contains<float, int, bool, char>()));
 }
 
+FIXTURE(def_ctor) {
+  int_or_str_t a;
+  EXPECT_FALSE(a);
+}
+
+FIXTURE(move_from_val_ctor) {
+  string temp = hello;
+  int_or_str_t a = move(temp);
+  if (EXPECT_TRUE(a)) {
+    EXPECT_EQ(a.as<string>(), hello);
+  }
+  EXPECT_TRUE(temp.empty());
+}
+
+FIXTURE(copy_from_val_ctor) {
+  int_or_str_t a = hello;
+  if (EXPECT_TRUE(a)) {
+    EXPECT_EQ(a.as<string>(), hello);
+  }
+}
+
+FIXTURE(move_ctor) {
+  int_or_str_t a = hello, b = move(a);
+  EXPECT_FALSE(a);
+  if (EXPECT_TRUE(b)) {
+    EXPECT_EQ(b.as<string>(), hello);
+  }
+}
+
+FIXTURE(copy_ctor) {
+  int_or_str_t a = hello, b = a;
+  if (EXPECT_TRUE(a)) {
+    EXPECT_EQ(a.as<string>(), hello);
+  }
+  if (EXPECT_TRUE(b)) {
+    EXPECT_EQ(b.as<string>(), hello);
+  }
+}
+
+FIXTURE(move_assign) {
+  int_or_str_t a = hello, b;
+  b = move(a);
+  EXPECT_FALSE(a);
+  if (EXPECT_TRUE(b)) {
+    EXPECT_EQ(b.as<string>(), hello);
+  }
+}
+
+FIXTURE(copy_assign) {
+  int_or_str_t a = hello, b;
+  b = a;
+  if (EXPECT_TRUE(a)) {
+    EXPECT_EQ(a.as<string>(), hello);
+  }
+  if (EXPECT_TRUE(b)) {
+    EXPECT_EQ(b.as<string>(), hello);
+  }
+}
+
+FIXTURE(get_type_info) {
+  int_or_str_t a, b(101), c(hello);
+  EXPECT_FALSE(a.get_type_info());
+  EXPECT_TRUE(*b.get_type_info() == typeid(int));
+  EXPECT_TRUE(*c.get_type_info() == typeid(string));
+  swap(a, b);
+  EXPECT_TRUE(*a.get_type_info() == typeid(int));
+  EXPECT_FALSE(b.get_type_info());
+  swap(a, c);
+  EXPECT_TRUE(*a.get_type_info() == typeid(string));
+  EXPECT_TRUE(*c.get_type_info() == typeid(int));
+}
+
 FIXTURE(try_as) {
   int_or_str_t a, b(101), c(hello);
   EXPECT_FALSE(a.try_as<int>());
@@ -67,6 +139,13 @@ FIXTURE(try_as) {
     EXPECT_EQ(*c.try_as<string>(), hello);
   }
   EXPECT_FALSE(c.try_as<int>());
+}
+
+FIXTURE(reset) {
+  int_or_str_t a = hello;
+  EXPECT_TRUE(a);
+  a.reset();
+  EXPECT_FALSE(a);
 }
 
 /* A type we'll use as a test of unary functor application.  It can be applied
