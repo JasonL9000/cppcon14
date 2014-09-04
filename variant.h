@@ -479,8 +479,8 @@ struct for_fn1<ret_t (params_t...)> {
       this->ret = (this->functor)(elem, std::get<i>(this->tuple)...);
     }
 
-  };  /* for_fn1<ret_t (params_t...)>
-             ::applier_t<functor_t, visitor_t, elem_t, more_elems_t...> */
+  };  // for_fn1<ret_t (params_t...)>
+      //   ::applier_t<functor_t, visitor_t, elem_t, more_elems_t...>
 
   /* Applies a functor to a variant, passing zero or more additional
      arguments and returning a result. */
@@ -548,7 +548,7 @@ struct for_fn1<void (params_t...)> {
 
   };  // for_fn1<void (params_t...)>::applier_t<functor_t, visitor_t>
 
-  /* Each iteration of the recursive case defines a unary overload of
+  /* Each iteration of the recursive case defines an overload of
      operator(). */
   template <
       typename functor_t, typename visitor_t,
@@ -583,8 +583,8 @@ struct for_fn1<void (params_t...)> {
       (this->functor)(elem, std::get<i>(this->tuple)...);
     }
 
-  };  /* for_fn1<void (params_t...)>
-          ::applier_t<functor_t, visitor_t, elem_t, more_elems_t...> */
+  };  // for_fn1<void (params_t...)>
+      //   ::applier_t<functor_t, visitor_t, elem_t, more_elems_t...>
 
   /* Applies a functor to a variant, passing zero or more additional
      arguments. */
@@ -675,7 +675,7 @@ struct for_fn2<ret_t (params_t...)> {
         : functor(functor), lhs_elem(lhs_elem), ret(ret), tuple(tuple) {}
 
     /* Override of the definition in rhs_visitor_t.  This is version used when
-       the rhs-variant is null.  It is just a hand-ff to apply_tuple(),
+       the rhs-variant is null.  It's just a hand-ff to apply_tuple(),
        below. */
     virtual void operator()(nullptr_t) const override final {
       assert(this);
@@ -698,25 +698,30 @@ struct for_fn2<ret_t (params_t...)> {
 
     private:
 
-    /* TODO */
+    /* Passes the previously discovered lhs elem and the newly discovered
+       rhs elem (which is null), along with the arguments unrolled from
+       the tuple, to the functor, and caches the value returned. */
     template <size_t... i>
     void apply_tuple(std::index_sequence<i...> &&) const {
       assert(this);
-      functor(lhs_elem, nullptr, std::get<i>(tuple)...);
+      ret = functor(lhs_elem, nullptr, std::get<i>(tuple)...);
     }
 
-  };  /* for_fn2<ret_t (params_t...)>
-          ::rhs_applied_t<functor_t, lhs_elem_t, rhs_visitor> */
+  };  // for_fn2<ret_t (params_t...)>
+      //   ::rhs_applied_t<functor_t, lhs_elem_t, rhs_visitor>
 
-  /* TODO */
+  /* Each iteration of this recursive case defines an overload of
+     operator() for some element of the rhs variant. */
   template <
       typename functor_t, typename lhs_elem_t, typename rhs_visitor_t,
       typename rhs_elem_t, typename... more_rhs_elems_t>
-  class rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t, rhs_elem_t, more_rhs_elems_t...>
-      : public rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...> {
+  class rhs_applier_t<
+      functor_t, lhs_elem_t, rhs_visitor_t, rhs_elem_t, more_rhs_elems_t...>
+      : public rhs_applier_t<
+            functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...> {
     public:
 
-    /* TODO */
+    /* Pass everything up to the base. */
     rhs_applier_t(
         functor_t &functor, const lhs_elem_t &lhs_elem,
         ret_t &ret, const tuple_t &tuple)
@@ -732,20 +737,25 @@ struct for_fn2<ret_t (params_t...)> {
 
     private:
 
-    /* TODO */
-    using recur_t =
-        rhs_applier_t<functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...>;
+    /* The base class to which we recur. */
+    using recur_t = rhs_applier_t<
+        functor_t, lhs_elem_t, rhs_visitor_t, more_rhs_elems_t...>;
 
-    /* TODO */
+    /* Passes the previously discovered lhs elem and the newly discovered
+       rhs elem (which is non-null), along with the arguments unrolled from
+       the tuple, to the functor, and caches the value returned. */
     template <size_t... i>
     void apply_tuple(
         const rhs_elem_t &rhs_elem, std::index_sequence<i...> &&) const {
       assert(this);
-      this->ret = this->functor(this->lhs_elem, rhs_elem, std::get<i>(this->tuple)...);
+      this->ret = this->functor(
+          this->lhs_elem, rhs_elem, std::get<i>(this->tuple)...);
     }
 
-  };  /* for_fn2<ret_t (params_t...)>
-          ::rhs_applied_t<functor_t, lhs_elem_t, rhs_visitor, rhs_elem_t, more_rhs_elems_t...> */
+  };  // for_fn2<ret_t (params_t...)>
+      //   ::rhs_applied_t<
+      //       functor_t, lhs_elem_t, rhs_visitor,
+      //       rhs_elem_t, more_rhs_elems_t...>
 
   /* TODO */
   template <typename functor_t, typename... rhs_elems_t>
@@ -811,9 +821,9 @@ struct for_fn2<ret_t (params_t...)> {
         rhs_variant.accept(temp_t(functor, nullptr, ret, tuple));
       }
 
-    };  /* for_fn2<ret_t (params_t...)>
-            ::for_rhs<functor_t, rhs_elems_t...>
-            ::lhs_applier_t<lhs_visitor_t> */
+    };  // for_fn2<ret_t (params_t...)>
+        //   ::for_rhs<functor_t, rhs_elems_t...>
+        //   ::lhs_applier_t<lhs_visitor_t>
 
     /* Each iteration of the recursive case defines a unary overload of
        operator(). */
@@ -857,12 +867,12 @@ struct for_fn2<ret_t (params_t...)> {
         this->rhs_variant.accept(temp_t(this->functor, lhs_elem, this->ret, this->tuple));
       }
 
-    };  /* for_fn2<ret_t (params_t...)>
-            ::for_rhs<functor_t, rhs_elems_t...>
-            ::lhs_applier_t<lhs_visitor_t, lhs_elem_t, more_lhs_elems_t...> */
+    };  // for_fn2<ret_t (params_t...)>
+        //   ::for_rhs<functor_t, rhs_elems_t...>
+        //   ::lhs_applier_t<lhs_visitor_t, lhs_elem_t, more_lhs_elems_t...>
 
-  };  /* for_fn2<ret_t (params_t...)>
-          ::for_rhs<functor_t, rhs_elems_t...> */
+  };  // for_fn2<ret_t (params_t...)>
+      //   ::for_rhs<functor_t, rhs_elems_t...>
 
   /* Applies a functor to a pair of variants, passing zero or more additional
      arguments and returning a result. */
