@@ -150,7 +150,7 @@ The variant class template itself.
 
 /* A stack-based discriminated union with a null state. */
 template <typename... elems_t>
-class variant_t final {
+class variant_t {
   public:
 
   /* The type of visitor we accept. */
@@ -204,7 +204,7 @@ class variant_t final {
   }
 
   /* Destroy. */
-  ~variant_t() {
+  virtual ~variant_t() {
     assert(this);
     (tag->destroy)(*this);
   }
@@ -478,9 +478,9 @@ struct fn1_appliers {
     public:
 
     /* Cache stuff for later, when operator() gets dispatched. */
-    applier_t(functor_t &functor, ret_t *ret, params_t &&... params)
+    applier_t(functor_t &functor, ret_t *ret, params_t... params)
         : functor(functor), ret(ret),
-          tuple(std::forward_as_tuple(params)...) {}
+          tuple(std::forward_as_tuple(params...)) {}
 
     /* Override of the definition in visitor_t.  This is the nullary version,
        used when the variant is null.  It is just a hand-ff to apply_tuple(),
@@ -500,7 +500,7 @@ struct fn1_appliers {
     ret_t *ret;
 
     /* The extra arguments (beyond the variant) to pass to the functor. */
-    const std::tuple<params_t &&...> tuple;
+    const std::tuple<params_t...> tuple;
 
     private:
 
@@ -525,7 +525,7 @@ struct fn1_appliers {
     public:
 
     /* Pass everything up to the base case. */
-    applier_t(functor_t &functor, ret_t *ret, params_t &&... params)
+    applier_t(functor_t &functor, ret_t *ret, params_t... params)
         : recur_t(functor, ret, std::forward<params_t>(params)...) {}
 
     /* Override of the definition in visitor_t.  This is the unary version,
@@ -648,7 +648,7 @@ struct fn2_appliers {
 
   /* The type of tuple we use when forwarding the extra (that is, non-variant)
      function parameters. */
-  using tuple_t = std::tuple<params_t &&...>;
+  using tuple_t = std::tuple<params_t...>;
 
   /* This will be our visitor, recursively defined, to the rhs variant.  It
      functions as an adapter, passing control from the virtual functions of
@@ -790,9 +790,9 @@ struct fn2_appliers {
       /* Cache stuff for later, when operator() gets dispatched. */
       lhs_applier_t(
           functor_t &functor, const rhs_variant_t &rhs_variant,
-          ret_t *ret, params_t &&... params)
+          ret_t *ret, params_t... params)
           : functor(functor), rhs_variant(rhs_variant),
-            ret(ret), tuple(std::forward_as_tuple(params)...) {}
+            ret(ret), tuple(std::forward_as_tuple(params...)) {}
 
       /* Override of the definition in lhs_visitor_t.  This is version used
          when the variant is null.  It is just a hand-off to apply_tuple(),
@@ -846,7 +846,7 @@ struct fn2_appliers {
       /* Pass everything up to the base case. */
       lhs_applier_t(
           functor_t &functor, const rhs_variant_t &rhs_variant,
-          ret_t *ret, params_t &&... params)
+          ret_t *ret, params_t... params)
           : recur_t(
                 functor, rhs_variant, ret,
                 std::forward<params_t>(params)...) {}
