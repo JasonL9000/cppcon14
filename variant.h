@@ -127,7 +127,7 @@ template <>
 struct visitor_t<> {
 
   /* Override to handle a null variant. */
-  virtual void operator()(nullptr_t) const = 0;
+  virtual void operator()(std::nullptr_t) const = 0;
 
 };  // visitor_t<>
 
@@ -287,9 +287,7 @@ class variant_t {
      constants to define a type for our data storage space.  The space must
      be large enough to hold the largest of our types and aligned correctly
      for the most alignment-critical of our types. */
-  using data_t =
-      alignas(get_max_alignof<elems_t...>())
-      char[get_max_sizeof<elems_t...>()];
+  using data_t = char[get_max_sizeof<elems_t...>()];
 
   /* The functor used by try_as(), above. */
   template <typename elem_t>
@@ -299,7 +297,7 @@ class variant_t {
     using fn1_t = void ();
 
     /* Do nothing for a null variant. */
-    void operator()(nullptr_t) {}
+    void operator()(std::nullptr_t) {}
 
     /* Do nothing for a variant of another type. */
     template <typename other_t>
@@ -367,7 +365,7 @@ class variant_t {
     static const tag_t tag = {
       // move_construct
       [](variant_t &self, variant_t &&other) {
-        new (self.data) elem_t(std::move(other).force_as<elem_t>());
+        new (self.data) elem_t(std::move(other).template force_as<elem_t>());
         other.reset();
       },
       // copy_construct
@@ -416,7 +414,7 @@ class variant_t {
 
   /* The data to be interpreted by our tag.  This always passes through one
      of the overloads of force_as() before we use it. */
-  data_t data;
+  alignas(get_max_alignof<elems_t...>()) data_t data;
 
 };  // variant_t<elems_t...>
 
@@ -485,7 +483,7 @@ struct fn1_appliers {
     /* Override of the definition in visitor_t.  This is the nullary version,
        used when the variant is null.  It is just a hand-ff to apply_tuple(),
        below. */
-    virtual void operator()(nullptr_t) const override final {
+    virtual void operator()(std::nullptr_t) const override final {
       assert(this);
       apply_tuple(std::index_sequence_for<params_t...>());
     }
@@ -678,7 +676,7 @@ struct fn2_appliers {
     /* Override of the definition in rhs_visitor_t.  This is version used when
        the rhs-variant is null.  It's just a hand-off to apply_tuple(),
        below. */
-    virtual void operator()(nullptr_t) const override final {
+    virtual void operator()(std::nullptr_t) const override final {
       assert(this);
       apply_tuple(std::index_sequence_for<params_t...>());
     }
@@ -797,7 +795,7 @@ struct fn2_appliers {
       /* Override of the definition in lhs_visitor_t.  This is version used
          when the variant is null.  It is just a hand-off to apply_tuple(),
          below. */
-      virtual void operator()(nullptr_t) const override final {
+      virtual void operator()(std::nullptr_t) const override final {
         assert(this);
         apply_tuple(std::index_sequence_for<params_t...>());
       }
@@ -825,8 +823,10 @@ struct fn2_appliers {
       template <size_t... i>
       void apply_tuple(std::index_sequence<i...> &&) const {
         assert(this);
-        using applier_t = rhs_applier_t<
-            functor_t, nullptr_t, visitor_t<rhs_elems_t...>, rhs_elems_t...>;
+        using applier_t = rhs_applier_t<functor_t,
+                                        std::nullptr_t,
+                                        visitor_t<rhs_elems_t...>,
+                                        rhs_elems_t...>;
         rhs_variant.accept(applier_t(functor, nullptr, ret, tuple));
       }
 
