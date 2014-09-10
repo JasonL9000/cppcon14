@@ -465,10 +465,12 @@ class applier_t<some_visitor_t,
 
   template <typename... more_members_t>
   void dispatch_impl(
-      const std::tuple<const more_members_t &...> &more_members) const {
+      std::tuple<const more_members_t &...> &&more_members) const {
     make_overload<void>(
-        [&](auto *ret) { *ret = lib::apply(this->functor, more_members); },
-        [&](void *) { lib::apply(this->functor, more_members); })
+        [&](auto *ret) {
+          *ret = lib::apply(this->functor, std::move(more_members));
+        },
+        [&](void *) { lib::apply(this->functor, std::move(more_members)); })
       (this->ret);
   }
 
