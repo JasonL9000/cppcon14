@@ -41,27 +41,21 @@ struct val_t;
 using val_ptr_t = shared_ptr<val_t>;
 
 /* TODO */
-class type_mismatch_error_t final
-    : public runtime_error {
+class type_mismatch_error_t final : public runtime_error {
   public:
-  type_mismatch_error_t()
-      : runtime_error("type mismatch error") {}
+  type_mismatch_error_t() : runtime_error("type mismatch error") {}
 };
 
 /* TODO */
-class null_value_error_t final
-    : public runtime_error {
+class null_value_error_t final : public runtime_error {
   public:
-  null_value_error_t()
-      : runtime_error("null value error") {}
+  null_value_error_t() : runtime_error("null value error") {}
 };
 
 /* TODO */
-class undef_ref_error_t final
-    : public runtime_error {
+class undef_ref_error_t final : public runtime_error {
   public:
-  undef_ref_error_t()
-      : runtime_error("undefined ref error") {}
+  undef_ref_error_t() : runtime_error("undefined ref error") {}
 };
 
 /* ---------------------------------------------------------------------------
@@ -78,8 +72,7 @@ struct lambda_t final {
 };
 
 /* TODO */
-struct val_t final
-    : public variant_t<int, string, lambda_t> {
+struct val_t final : public variant_t<int, string, lambda_t, null_t> {
   using variant_t::variant_t;
 };
 
@@ -89,10 +82,8 @@ TODO
 
 /* TODO */
 struct unary_val_functor_t {
-  using fn1_t = val_t ();
-  val_t operator()(nullptr_t) const {
-    throw null_value_error_t();
-  }
+  using ret_t = val_t;
+  val_t operator()(null_t) const { throw null_value_error_t(); }
   template <typename that_t>
   val_t operator()(const that_t &) const {
     throw type_mismatch_error_t();
@@ -101,16 +92,14 @@ struct unary_val_functor_t {
 
 /* TODO */
 struct binary_val_functor_t {
-  using fn2_t = val_t ();
-  val_t operator()(nullptr_t, nullptr_t) const {
-    throw null_value_error_t();
-  }
+  using ret_t = val_t;
+  val_t operator()(null_t, null_t) const { throw null_value_error_t(); }
   template <typename lhs_t>
-  val_t operator()(const lhs_t &, nullptr_t) const {
+  val_t operator()(const lhs_t &, null_t) const {
     throw null_value_error_t();
   }
   template <typename rhs_t>
-  val_t operator()(nullptr_t, const rhs_t &) const {
+  val_t operator()(null_t, const rhs_t &) const {
     throw null_value_error_t();
   }
   template <typename lhs_t, typename rhs_t>
@@ -120,68 +109,48 @@ struct binary_val_functor_t {
 };
 
 /* TODO */
-struct neg_t final
-    : unary_val_functor_t {
+struct neg_t final : unary_val_functor_t {
   using unary_val_functor_t::operator();
-  val_t operator()(int that) const {
-    return -that;
-  }
+  val_t operator()(int that) const { return -that; }
 };
 
 /* TODO */
-struct not_t final
-    : unary_val_functor_t {
+struct not_t final : unary_val_functor_t {
   using unary_val_functor_t::operator();
-  val_t operator()(int that) const {
-    return static_cast<int>(!that);
-  }
+  val_t operator()(int that) const { return static_cast<int>(!that); }
 };
 
 /* TODO */
-struct to_int_t final
-    : unary_val_functor_t {
+struct to_int_t final : unary_val_functor_t {
   using unary_val_functor_t::operator();
-  val_t operator()(int that) const {
-    return that;
-  }
-  val_t operator()(const string &that) const {
-    return stoi(that);
-  }
+  val_t operator()(int that) const { return that; }
+  val_t operator()(const string &that) const { return stoi(that); }
 };
 
 /* TODO */
-struct to_str_t final
-    : unary_val_functor_t {
+struct to_str_t final : unary_val_functor_t {
   using unary_val_functor_t::operator();
   val_t operator()(int that) const {
     ostringstream strm;
     strm << that;
     return strm.str();
   }
-  val_t operator()(const string &that) const {
-    return that;
-  }
+  val_t operator()(const string &that) const { return that; }
 };
 
 /* TODO */
-struct add_t final
-    : binary_val_functor_t {
+struct add_t final : binary_val_functor_t {
   using binary_val_functor_t::operator();
-  val_t operator()(int lhs, int rhs) const {
-    return lhs + rhs;
-  }
+  val_t operator()(int lhs, int rhs) const { return lhs + rhs; }
   val_t operator()(const string &lhs, const string &rhs) const {
     return lhs + rhs;
   }
 };
 
 /* TODO */
-struct mul_t final
-    : binary_val_functor_t {
+struct mul_t final : binary_val_functor_t {
   using binary_val_functor_t::operator();
-  val_t operator()(int lhs, int rhs) const {
-    return lhs * rhs;
-  }
+  val_t operator()(int lhs, int rhs) const { return lhs * rhs; }
   val_t operator()(const string &lhs, int rhs) const {
     ostringstream strm;
     for (int i = 0; i < rhs; ++i) {
@@ -192,8 +161,7 @@ struct mul_t final
 };
 
 /* TODO */
-struct and_t final
-    : binary_val_functor_t {
+struct and_t final : binary_val_functor_t {
   using binary_val_functor_t::operator();
   val_t operator()(int lhs, int rhs) const {
     return static_cast<int>(lhs && rhs);
@@ -201,8 +169,7 @@ struct and_t final
 };
 
 /* TODO */
-struct or_t final
-    : binary_val_functor_t {
+struct or_t final : binary_val_functor_t {
   using binary_val_functor_t::operator();
   val_t operator()(int lhs, int rhs) const {
     return static_cast<int>(lhs || rhs);
@@ -210,8 +177,7 @@ struct or_t final
 };
 
 /* TODO */
-struct lt_t final
-    : binary_val_functor_t {
+struct lt_t final : binary_val_functor_t {
   using binary_val_functor_t::operator();
   val_t operator()(int lhs, int rhs) const {
     return static_cast<int>(lhs < rhs);
@@ -256,8 +222,7 @@ class scope_t final {
   using defs_t = map<string, val_t>;
 
   /* TODO */
-  explicit scope_t(const scope_t *parent = nullptr) noexcept
-      : parent(parent) {}
+  explicit scope_t(const scope_t *parent = nullptr) noexcept : parent(parent) {}
 
   /* TODO */
   void def(const string &name, val_t &&val) {
@@ -306,23 +271,32 @@ TODO
 
 /* TODO */
 struct lit_t final {
-  lit_t(const val_ptr_t &val)
-      : val(val) {}
+  lit_t(const val_ptr_t &val) : val(val) {}
   val_ptr_t val;
 };
 
 /* TODO */
 struct affix_t final {
-  enum op_t { neg, not_, to_int, to_str };
-  affix_t(op_t op, const expr_ptr_t &arg)
-      : op(op), arg(arg) {}
+  enum op_t {
+    neg,
+    not_,
+    to_int,
+    to_str
+  };
+  affix_t(op_t op, const expr_ptr_t &arg) : op(op), arg(arg) {}
   op_t op;
   expr_ptr_t arg;
 };
 
 /* TODO */
 struct infix_t final {
-  enum op_t { add, mul, lt, and_, or_ };
+  enum op_t {
+    add,
+    mul,
+    lt,
+    and_,
+    or_
+  };
   infix_t(op_t op, const expr_ptr_t &lhs, const expr_ptr_t &rhs)
       : op(op), lhs(lhs), rhs(rhs) {}
   op_t op;
@@ -331,16 +305,14 @@ struct infix_t final {
 
 /* TODO */
 struct ref_t final {
-  ref_t(string name)
-      : name(move(name)) {}
+  ref_t(string name) : name(move(name)) {}
   string name;
 };
 
 /* TODO */
 struct apply_t final {
   using args_t = vector<expr_ptr_t>;
-  apply_t(const expr_ptr_t &fn, args_t args)
-      : fn(fn), args(move(args)) {}
+  apply_t(const expr_ptr_t &fn, args_t args) : fn(fn), args(move(args)) {}
   expr_ptr_t fn;
   args_t args;
 };
@@ -359,22 +331,19 @@ TODO
 struct eval_t final {
 
   /* TODO */
-  using fn1_t = val_t (const scope_t *);
+  using ret_t = val_t;
 
   /* TODO */
-  val_t operator()(nullptr_t, const scope_t *) const {
-    return val_t();
-  }
+  val_t operator()(nullptr_t) const { return val_t(); }
 
   /* TODO */
-  val_t operator()(const lit_t &that, const scope_t *) const {
+  val_t operator()(const lit_t &that) const {
     return *that.val;
   }
 
   /* TODO */
-  val_t operator()(const affix_t &that, const scope_t *scope) const {
-    val_t result,
-          arg = apply(*this, *that.arg, scope);
+  val_t operator()(const affix_t &that) const {
+    val_t result, arg = apply(*this, *that.arg);
     switch (that.op) {
       case affix_t::neg: {
         result = apply(neg_t(), arg);
@@ -397,10 +366,8 @@ struct eval_t final {
   }
 
   /* TODO */
-  val_t operator()(const infix_t &that, const scope_t *scope) const {
-    val_t result,
-          lhs = apply(*this, *that.lhs, scope),
-          rhs = apply(*this, *that.lhs, scope);
+  val_t operator()(const infix_t &that) const {
+    val_t result, lhs = apply(*this, *that.lhs), rhs = apply(*this, *that.rhs);
     switch (that.op) {
       case infix_t::add: {
         result = apply(add_t(), lhs, rhs);
@@ -427,14 +394,14 @@ struct eval_t final {
   }
 
   /* TODO */
-  val_t operator()(const ref_t &that, const scope_t *scope) const {
+  val_t operator()(const ref_t &that) const {
     return scope->ref(that.name);
   }
 
   /* TODO */
-  val_t operator()(const apply_t &that, const scope_t *scope) const {
+  val_t operator()(const apply_t &that) const {
     /* Get the lambda we're going to apply. */
-    val_t fn = apply(*this, *that.fn, scope);
+    val_t fn = apply(*this, *that.fn);
     const auto *lambda = fn.try_as<lambda_t>();
     if (!lambda || lambda->params.size() != that.args.size()) {
       throw type_mismatch_error_t();
@@ -442,11 +409,13 @@ struct eval_t final {
     /* Evaluate the arguments and put them into scope. */
     scope_t local_scope(scope);
     for (size_t i = 0; i < that.args.size(); ++i) {
-      local_scope.def(lambda->params[i], apply(*this, *that.args[i], scope));
+      local_scope.def(lambda->params[i], apply(*this, *that.args[i]));
     }
     /* Evaluate the lambda's definition. */
-    return apply(*this, *lambda->def, &local_scope);
+    return apply(eval_t{&local_scope}, *lambda->def);
   }
+
+  const scope_t *scope;
 
 };
 
@@ -457,9 +426,23 @@ TODO
 /* TODO */
 struct token_t final {
   enum kind_t {
-    end, open_paren, close_paren, plus, minus, star, lt, eq, comma,
-    lit, name,
-    and_kwd, fn_kwd, int_kwd, not_kwd, or_kwd, str_kwd
+    end,
+    open_paren,
+    close_paren,
+    plus,
+    minus,
+    star,
+    lt,
+    eq,
+    comma,
+    lit,
+    name,
+    and_kwd,
+    fn_kwd,
+    int_kwd,
+    not_kwd,
+    or_kwd,
+    str_kwd
   };
   kind_t kind;
   val_ptr_t val;
@@ -889,7 +872,7 @@ inline expr_ptr_t parse_expr(const string &text) {
 /* TODO */
 inline val_t eval(const string &text) {
   scope_t scope;
-  return apply(eval_t(), *parse_expr(text), &scope);
+  return apply(eval_t{&scope}, *parse_expr(text));
 }
 
 /* TODO */
@@ -900,3 +883,4 @@ inline string eval_as_str(const string &text) {
 FIXTURE(parse_expr) {
   EXPECT_EQ(eval_as_str("1 + 2"), "3");
 }
+
