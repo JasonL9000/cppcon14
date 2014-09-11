@@ -110,22 +110,43 @@ struct visitor_t : visitor_t<more_elems_t...> {
 };  // visitor_t
 
 /* A class that inherits from lambdas and results in an overloaded lambda. */
-template <typename ret_t_, typename... lambdas_t>
-struct overload_t : lambdas_t... {
+template <typename ret_t, typename... lambdas_t>
+struct overload_t;
+
+/* Base case. */
+template <typename ret_t_, typename lambda_t>
+struct overload_t<ret_t_, lambda_t> : lambda_t {
 
   /* Used to look-up the expected return type of the lambdas. */
   using ret_t = ret_t_;
 
-  /* Cache the lambdas. */
-  overload_t(lambdas_t &&... lambdas)
-      : lambdas_t(std::forward<lambdas_t>(lambdas))... {}
+  using lambda_t::operator();
 
-};  // overload
+  overload_t(lambda_t lambda) : lambda_t(std::move(lambda)) {}
+
+};  // overload_t<ret_t_, lambda_t>
+
+/* Recursive case. */
+template <typename ret_t, typename lambda_t, typename... more_lambdas_t>
+struct overload_t<ret_t, lambda_t, more_lambdas_t...>
+    : lambda_t, overload_t<ret_t, more_lambdas_t...> {
+
+  using super_t = overload_t<ret_t, more_lambdas_t...>;
+
+  using lambda_t::operator();
+  using super_t::operator();
+
+  /* Cache the lambdas. */
+  overload_t(lambda_t lambda, more_lambdas_t... more_lambdas)
+      : lambda_t(std::move(lambda)), super_t(std::move(more_lambdas)...) {}
+
+};  // overload<ret_t, lambda_t, more_lambdas_t...>
 
 /* Factory function for overload. */
 template <typename ret_t, typename... lambdas_t>
 auto make_overload(lambdas_t &&... lambdas) {
-  return overload_t<ret_t, lambdas_t...>(std::forward<lambdas_t>(lambdas)...);
+  return overload_t<ret_t, std::decay_t<lambdas_t>...>(
+      std::forward<lambdas_t>(lambdas)...);
 }
 
 /**
