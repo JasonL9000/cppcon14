@@ -36,17 +36,17 @@ void circle_t::accept(const visitor_t &visitor) const { visitor(this); }
 void square_t::accept(const visitor_t &visitor) const { visitor(this); }
 void triangle_t::accept(const visitor_t &visitor) const { visitor(this); }
 
-double get_area(const shape_t *shape) {
+inline double get_area(const shape_t *shape) {
   struct visitor_t final : shape_t::visitor_t {
     double *result;
     virtual void operator()(const circle_t &) const override {
-      *result = /* something */ 0;
+      *result = /* pi-r-squared */ 0;
     }
     virtual void operator()(const square_t &) const override {
-      *result = /* something */ 0;
+      *result = /* size-squared */ 0;
     }
     virtual void operator()(const triangle_t &) const override {
-      *result = /* something */ 0;
+      *result = /* half-base-height */ 0;
     }
   };
   double result;
@@ -54,20 +54,39 @@ double get_area(const shape_t *shape) {
   return result;
 }
 
-double get_perimeter(const shape_t *shape) {
+inline double get_perimeter(const shape_t *shape) {
   struct visitor_t final : shape_t::visitor_t {
     double *result;
     virtual void operator()(const circle_t &) const override {
-      *result = /* something */ 0;
+      *result = /* pi-diameter */ 0;
     }
     virtual void operator()(const square_t &) const override {
-      *result = /* something */ 0;
+      *result = /* 4-size */ 0;
     }
     virtual void operator()(const triangle_t &) const override {
-      *result = /* something */ 0;
+      *result = /* sum-of-edges */ 0;
     }
   };
   double result;
   shape->accept(visitor_t { &result });
   return result;
+}
+
+inline std::ostream &operator<<(std::ostream &strm, const shape_t *shape) {
+  struct visitor_t final : shape_t::visitor_t {
+    std::ostream *strm;
+    virtual void operator()(const circle_t &that) const override {
+      (*strm) << that.ctr << ", " << that.radius;
+    }
+    virtual void operator()(const square_t &that) const override {
+      (*strm) << that.ctr << ", " that.size;
+    }
+    virtual void operator()(const triangle_t &that) const override {
+      (*strm) << that.pnts[0] << ", "
+              << that.pnts[1] << ", "
+              << that.pnts[2];
+    }
+  };
+  shape->accept(visitor_t { &strm });
+  return strm;
 }
