@@ -542,7 +542,7 @@ additional arguments.
 template <typename ret_t>
 struct storage_t {
 
-  ret_t get() && { return std::move(ret); }
+  ret_t get() { return std::move(ret); }
 
   ret_t *ptr() { return &ret; }
 
@@ -600,12 +600,12 @@ decltype(auto) match(const variant_t<lhs_elems_t...> &lhs,
 }
 
 template <typename ret_t, typename... variants_t, typename... lambdas_t>
-decltype(auto) match(const std::tuple<const variants_t &...> &that,
+decltype(auto) match(const std::tuple<variants_t...> &that,
                      lambdas_t &&... lambdas) {
-  return lib::apply([&](auto &&... args) -> decltype(auto) {
-                      return make_overload<ret_t>(
-                                 std::forward<lambdas_t>(lambdas)...)
-                               (std::forward<decltype(args)>(args)...);
+  return lib::apply([&](auto && ... args)->decltype(auto) {
+                      return apply(make_overload<ret_t>(
+                                       std::forward<lambdas_t>(lambdas)...),
+                                   std::forward<decltype(args)>(args)...);
                     },
                     that);
 }

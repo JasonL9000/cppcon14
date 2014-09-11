@@ -1,3 +1,5 @@
+#pragma once
+
 // ---------------------------------------------------------------------------
 // "car.h"
 
@@ -28,10 +30,12 @@ struct horse_t {
 // ---------------------------------------------------------------------------
 // "transport.h"
 
+/*
 #include "car.h"
 #include "plane.h"
 #include "horse.h"
+*/
 
-using transport_t = variant_t<car_t, plane_t, horse_t>;
+using transport_t = cppcon14::variant::variant_t<car_t, plane_t, horse_t>;
 // stuff about going fast and carrying cargo
 // ---------------------------------------------------------------------------
