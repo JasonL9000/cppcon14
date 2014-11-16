@@ -1,3 +1,7 @@
+#pragma once
+
+#include "variant.h"
+
 // ---------------------------------------------------------------------------
 // "dog.h"
 
@@ -24,14 +28,15 @@ struct horse_t {
 };
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // "animal.h"
 
+/*
 #include "dog.h"
 #include "cat.h"
 #include "horse.h"
+*/
 
-using animal_t = variant_t<dog_t, cat_t, horse_t>;
+using animal_t = cppcon14::variant::variant_t<dog_t, cat_t, horse_t>;
 // stuff about making sounds and interacting with people
 // ---------------------------------------------------------------------------
