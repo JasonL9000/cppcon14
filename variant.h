@@ -22,6 +22,7 @@ See "variant.test.cc" for examples of use.
 
 #include <cassert>
 #include <cstddef>
+#include <initializer_list>
 #include <tuple>
 #include <type_traits>
 #include <typeinfo>
